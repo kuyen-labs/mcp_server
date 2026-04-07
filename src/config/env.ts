@@ -1,4 +1,7 @@
+import { config as loadDotEnv } from 'dotenv';
 import { z } from 'zod';
+
+loadDotEnv();
 
 const envSchema = z.object({
   FUUL_API_BASE_URL: z.string().url().default('https://api.fuul.xyz'),
