@@ -1,4 +1,4 @@
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 
 import { OAuthClient } from '../auth/oauth-client.js';
 import { TokenStore } from '../auth/token-store.js';
@@ -51,10 +51,33 @@ export class FuulApiClient {
 
   /** GET /api/v1/auth/user — same contract as `fuul-mcp whoami`. */
   async getAuthUser(): Promise<unknown> {
-    return this.authorizedGet('/api/v1/auth/user');
+    const res = await this.executeAuthorizedGet<unknown>('/api/v1/auth/user');
+    if (res.status !== 200) {
+      throw new ApiRequestError(`Request failed (HTTP ${res.status})`, res.status, res.data);
+    }
+    return res.data;
   }
 
-  private async authorizedGet<T = unknown>(url: string): Promise<T> {
+  /**
+   * Authenticated GET (Bearer + refresh on 401). Exposes status and headers for cacheable endpoints (e.g. metadata).
+   */
+  async getAuthorized(
+    url: string,
+    extraHeaders?: Record<string, string>,
+  ): Promise<{ status: number; data: unknown; etag: string | undefined; cacheControl: string | undefined }> {
+    const res = await this.executeAuthorizedGet<unknown>(url, extraHeaders);
+    return {
+      status: res.status,
+      data: res.data,
+      etag: readHeader(res, 'etag'),
+      cacheControl: readHeader(res, 'cache-control'),
+    };
+  }
+
+  private async executeAuthorizedGet<T>(
+    url: string,
+    extraHeaders?: Record<string, string>,
+  ): Promise<AxiosResponse<T>> {
     let tokens = await this.tokenStore.read();
     if (!tokens?.access_token) {
       throw new NotLoggedInError();
@@ -62,7 +85,7 @@ export class FuulApiClient {
 
     const get = (accessToken: string) =>
       this.http.get<T>(url, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: { Authorization: `Bearer ${accessToken}`, ...extraHeaders },
       });
 
     let res = await get(tokens.access_token);
@@ -75,10 +98,14 @@ export class FuulApiClient {
       }
     }
 
-    if (res.status !== 200) {
-      throw new ApiRequestError(`Request failed (HTTP ${res.status})`, res.status, res.data);
-    }
-
-    return res.data as T;
+    return res;
   }
+}
+
+function readHeader(res: AxiosResponse, name: string): string | undefined {
+  const raw = res.headers[name] ?? res.headers[name.toLowerCase()];
+  if (raw == null) {
+    return undefined;
+  }
+  return Array.isArray(raw) ? String(raw[0]) : String(raw);
 }
