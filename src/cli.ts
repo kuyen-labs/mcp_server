@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-import axios from 'axios';
-
 import { OAuthClient } from './auth/oauth-client.js';
 import { TokenStore } from './auth/token-store.js';
-import { apiOriginFromEnv, loadEnv } from './config/env.js';
+import { loadEnv } from './config/env.js';
+import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-api-client.js';
 
 function printUsage(): void {
   console.log(`Usage: fuul-mcp <command>
@@ -25,35 +24,22 @@ async function whoami(): Promise<void> {
   const env = loadEnv();
   const store = new TokenStore();
   const oauth = new OAuthClient(env, store);
-  let tokens = await store.read();
-  if (!tokens) {
-    console.error('Not logged in. Run: fuul-mcp login');
-    process.exit(1);
-  }
+  const api = new FuulApiClient(env, store, oauth);
 
-  const origin = apiOriginFromEnv(env);
-  const fetchUser = async (accessToken: string) =>
-    axios.get(`${origin}/api/v1/auth/user`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      timeout: 30_000,
-      validateStatus: () => true,
-    });
-
-  let res = await fetchUser(tokens.access_token);
-  if (res.status === 401 && tokens.refresh_token) {
-    const refreshed = await oauth.refreshFromStore();
-    if (refreshed) {
-      tokens = refreshed;
-      res = await fetchUser(tokens.access_token);
+  try {
+    const user = await api.getAuthUser();
+    console.log(JSON.stringify(user, null, 2));
+  } catch (e) {
+    if (e instanceof NotLoggedInError) {
+      console.error(e.message);
+      process.exit(1);
     }
+    if (e instanceof ApiRequestError) {
+      console.error(`Failed to load user (HTTP ${e.status}). Try: fuul-mcp login`);
+      process.exit(1);
+    }
+    throw e;
   }
-
-  if (res.status !== 200) {
-    console.error(`Failed to load user (HTTP ${res.status}). Try: fuul-mcp login`);
-    process.exit(1);
-  }
-
-  console.log(JSON.stringify(res.data, null, 2));
 }
 
 async function main(): Promise<void> {
