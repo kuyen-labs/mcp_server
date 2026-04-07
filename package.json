@@ -1,0 +1,66 @@
+{
+  "name": "@fuul/mcp-server",
+  "version": "0.1.0",
+  "description": "Fuul MCP server for program management via MCP-compatible clients",
+  "keywords": [
+    "Fuul",
+    "Fuul Protocol",
+    "MCP",
+    "Model Context Protocol"
+  ],
+  "author": "Fuul Team",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "fuul-mcp": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "cli": "tsx src/cli.ts",
+    "dev": "tsx src/index.ts",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write 'src/**/*.ts' '*.json' 'eslint.config.js' --config ./.prettierrc"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "axios": "^1.7.9",
+    "open": "^10.1.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/node": "^22.10.0",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^9.1.2",
+    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.58.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "overrides": {
+    "minimatch": ">=10.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kuyen-labs/mcp_server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kuyen-labs/mcp_server/issues"
+  },
+  "homepage": "https://github.com/kuyen-labs/mcp_server#readme"
+}
