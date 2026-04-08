@@ -3,6 +3,7 @@ import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 import { OAuthClient } from '../auth/oauth-client.js';
 import { TokenStore } from '../auth/token-store.js';
 import { apiOriginFromEnv, type Env } from '../config/env.js';
+import { formatRateLimitMessage, parseRetryAfterFromHeaders } from './retry-after.js';
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -23,6 +24,8 @@ export class ApiRequestError extends Error {
     message: string,
     readonly status: number,
     readonly body?: unknown,
+    /** Seconds until retry when HTTP 429 and Retry-After is present. */
+    readonly retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = 'ApiRequestError';
@@ -53,6 +56,10 @@ export class FuulApiClient {
   async getAuthUser(): Promise<unknown> {
     const res = await this.executeAuthorizedGet<unknown>('/api/v1/auth/user');
     if (res.status !== 200) {
+      if (res.status === 429) {
+        const retryAfter = parseRetryAfterFromHeaders(res.headers);
+        throw new ApiRequestError(formatRateLimitMessage(retryAfter), 429, res.data, retryAfter);
+      }
       throw new ApiRequestError(`Request failed (HTTP ${res.status})`, res.status, res.data);
     }
     return res.data;
@@ -64,20 +71,24 @@ export class FuulApiClient {
   async getAuthorized(
     url: string,
     extraHeaders?: Record<string, string>,
-  ): Promise<{ status: number; data: unknown; etag: string | undefined; cacheControl: string | undefined }> {
+  ): Promise<{
+    status: number;
+    data: unknown;
+    etag: string | undefined;
+    cacheControl: string | undefined;
+    retryAfterSeconds: number | undefined;
+  }> {
     const res = await this.executeAuthorizedGet<unknown>(url, extraHeaders);
     return {
       status: res.status,
       data: res.data,
       etag: readHeader(res, 'etag'),
       cacheControl: readHeader(res, 'cache-control'),
+      retryAfterSeconds: parseRetryAfterFromHeaders(res.headers),
     };
   }
 
-  private async executeAuthorizedGet<T>(
-    url: string,
-    extraHeaders?: Record<string, string>,
-  ): Promise<AxiosResponse<T>> {
+  private async executeAuthorizedGet<T>(url: string, extraHeaders?: Record<string, string>): Promise<AxiosResponse<T>> {
     let tokens = await this.tokenStore.read();
     if (!tokens?.access_token) {
       throw new NotLoggedInError();
