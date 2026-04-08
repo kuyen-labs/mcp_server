@@ -33,6 +33,15 @@ export class ApiRequestError extends Error {
   }
 }
 
+type AuthorizedRequestOptions = {
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  url: string;
+  headers?: Record<string, string>;
+  /** Query string params (GET, etc.). */
+  params?: Record<string, unknown>;
+  data?: unknown;
+};
+
 /**
  * Authenticated Fuul API client: Bearer from ~/.fuul/tokens.json, refresh + one retry on 401.
  */
@@ -54,13 +63,12 @@ export class FuulApiClient {
 
   /** GET /api/v1/auth/user — same contract as `fuul-mcp whoami`. */
   async getAuthUser(): Promise<unknown> {
-    const res = await this.executeAuthorizedGet<unknown>('/api/v1/auth/user');
+    const res = await this.executeAuthorizedRequest<unknown>({
+      method: 'GET',
+      url: '/api/v1/auth/user',
+    });
     if (res.status !== 200) {
-      if (res.status === 429) {
-        const retryAfter = parseRetryAfterFromHeaders(res.headers);
-        throw new ApiRequestError(formatRateLimitMessage(retryAfter), 429, res.data, retryAfter);
-      }
-      throw new ApiRequestError(`Request failed (HTTP ${res.status})`, res.status, res.data);
+      throw apiErrorFromResponse(res);
     }
     return res.data;
   }
@@ -71,6 +79,7 @@ export class FuulApiClient {
   async getAuthorized(
     url: string,
     extraHeaders?: Record<string, string>,
+    query?: Record<string, unknown>,
   ): Promise<{
     status: number;
     data: unknown;
@@ -78,7 +87,12 @@ export class FuulApiClient {
     cacheControl: string | undefined;
     retryAfterSeconds: number | undefined;
   }> {
-    const res = await this.executeAuthorizedGet<unknown>(url, extraHeaders);
+    const res = await this.executeAuthorizedRequest<unknown>({
+      method: 'GET',
+      url,
+      headers: extraHeaders,
+      params: query,
+    });
     return {
       status: res.status,
       data: res.data,
@@ -88,29 +102,95 @@ export class FuulApiClient {
     };
   }
 
-  private async executeAuthorizedGet<T>(url: string, extraHeaders?: Record<string, string>): Promise<AxiosResponse<T>> {
+  /**
+   * GET expecting 2xx JSON body; throws {@link ApiRequestError} otherwise (including 429 with retry hint).
+   */
+  async getJson(url: string, options?: { query?: Record<string, unknown>; headers?: Record<string, string> }): Promise<unknown> {
+    const res = await this.executeAuthorizedRequest<unknown>({
+      method: 'GET',
+      url,
+      headers: options?.headers,
+      params: options?.query,
+    });
+    throwIfNotSuccess(res);
+    return res.data;
+  }
+
+  async postJson(url: string, body: unknown): Promise<unknown> {
+    const res = await this.executeAuthorizedRequest<unknown>({
+      method: 'POST',
+      url,
+      data: body,
+    });
+    throwIfNotSuccess(res);
+    return res.data;
+  }
+
+  async patchJson(url: string, body: unknown): Promise<unknown> {
+    const res = await this.executeAuthorizedRequest<unknown>({
+      method: 'PATCH',
+      url,
+      data: body,
+    });
+    throwIfNotSuccess(res);
+    return res.data;
+  }
+
+  private async executeAuthorizedRequest<T>(opts: AuthorizedRequestOptions): Promise<AxiosResponse<T>> {
     let tokens = await this.tokenStore.read();
     if (!tokens?.access_token) {
       throw new NotLoggedInError();
     }
 
-    const get = (accessToken: string) =>
-      this.http.get<T>(url, {
-        headers: { Authorization: `Bearer ${accessToken}`, ...extraHeaders },
+    const run = (accessToken: string) =>
+      this.http.request<T>({
+        method: opts.method,
+        url: opts.url,
+        headers: { Authorization: `Bearer ${accessToken}`, ...opts.headers },
+        params: opts.params,
+        data: opts.data,
       });
 
-    let res = await get(tokens.access_token);
+    let res = await run(tokens.access_token);
 
     if (res.status === 401 && tokens.refresh_token) {
       const refreshed = await this.oauth.refreshFromStore();
       if (refreshed) {
         tokens = refreshed;
-        res = await get(tokens.access_token);
+        res = await run(tokens.access_token);
       }
     }
 
     return res;
   }
+}
+
+export function throwIfNotSuccess(res: AxiosResponse): void {
+  if (res.status >= 200 && res.status < 300) {
+    return;
+  }
+  throw apiErrorFromResponse(res);
+}
+
+function apiErrorFromResponse(res: AxiosResponse): ApiRequestError {
+  if (res.status === 429) {
+    const retryAfter = parseRetryAfterFromHeaders(res.headers);
+    return new ApiRequestError(formatRateLimitMessage(retryAfter), 429, res.data, retryAfter);
+  }
+  return new ApiRequestError(messageFromBody(res.data, res.status), res.status, res.data);
+}
+
+function messageFromBody(data: unknown, status: number): string {
+  if (data && typeof data === 'object') {
+    const o = data as Record<string, unknown>;
+    if (typeof o.message === 'string') {
+      return o.message;
+    }
+    if (Array.isArray(o.message)) {
+      return o.message.map(String).join('; ');
+    }
+  }
+  return `Request failed (HTTP ${status})`;
 }
 
 function readHeader(res: AxiosResponse, name: string): string | undefined {
