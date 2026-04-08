@@ -27,7 +27,7 @@ export class OAuthClient {
     const baseURL = apiOriginFromEnv(this.env);
     return axios.create({
       baseURL,
-      timeout: 60_000,
+      timeout: 30_000,
       headers: { 'Content-Type': 'application/json' },
       validateStatus: () => true,
     });
