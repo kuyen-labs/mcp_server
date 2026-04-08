@@ -2,7 +2,7 @@
 
 Fuul [Model Context Protocol](https://modelcontextprotocol.io/) server: OAuth login, metadata proxy tools, project/incentive/payout operations (read + confirmed writes), and rate-limit-aware API errors.
 
-Maintainers: [docs/AGENTS.md](docs/AGENTS.md) (full tool ↔ HTTP map). Prompts / consumer: [docs/mcp-phase2/tool-prompts.md](docs/mcp-phase2/tool-prompts.md), [docs/mcp-phase2/CONSUMER.md](docs/mcp-phase2/CONSUMER.md). Changes: [CHANGELOG.md](CHANGELOG.md).
+Maintainers: [docs/AGENTS.md](docs/AGENTS.md) (full tool ↔ HTTP map). Prompts / consumer: [docs/mcp-phase2/tool-prompts.md](docs/mcp-phase2/tool-prompts.md), [docs/mcp-phase2/CONSUMER.md](docs/mcp-phase2/CONSUMER.md).
 
 ## Requirements
 
