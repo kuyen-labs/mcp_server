@@ -6,6 +6,13 @@ import { TokenStore } from './auth/token-store.js';
 import { loadEnv } from './config/env.js';
 import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-api-client.js';
 import { MetadataService } from './metadata/metadata-service.js';
+import {
+  LIST_CHAINS_DESCRIPTION,
+  LIST_PAYOUT_SCHEMAS_DESCRIPTION,
+  LIST_TRIGGER_TYPES_DESCRIPTION,
+  PING_DESCRIPTION,
+  WHOAMI_DESCRIPTION,
+} from './tools/tool-descriptions.js';
 import { ToolTimeoutError, withTimeout } from './util/with-timeout.js';
 
 function toolErrorPayload(e: unknown, httpDetail = 'Request failed'): { content: [{ type: 'text'; text: string }]; isError: true } {
@@ -15,7 +22,9 @@ function toolErrorPayload(e: unknown, httpDetail = 'Request failed'): { content:
       : e instanceof NotLoggedInError
         ? e.message
         : e instanceof ApiRequestError
-          ? `${httpDetail} (HTTP ${e.status}). Run \`fuul-mcp login\` if you are not authenticated.`
+          ? e.status === 401
+            ? `${httpDetail} (HTTP ${e.status}). Run \`fuul-mcp login\` if you are not authenticated.`
+            : e.message
           : e instanceof Error
             ? e.message
             : String(e);
@@ -36,39 +45,29 @@ async function main(): Promise<void> {
   });
 
   // Empty `{}` input shape so clients get a proper JSON Schema (some UIs hide tools with no inputSchema).
-  server.tool('ping', 'Returns pong if the MCP server process is running.', {}, async () => ({
+  server.tool('ping', PING_DESCRIPTION, {}, async () => ({
     content: [{ type: 'text', text: 'pong' }],
   }));
 
-  server.tool(
-    'whoami',
-    'Returns the current Fuul user from GET /api/v1/auth/user. Requires prior `fuul-mcp login` (tokens in ~/.fuul/tokens.json).',
-    {},
-    async () => {
-      try {
-        const user = await withTimeout(api.getAuthUser(), toolTimeoutMs, 'whoami');
-        return { content: [{ type: 'text', text: JSON.stringify(user, null, 2) }] };
-      } catch (e) {
-        return toolErrorPayload(e, 'Failed to load user');
-      }
-    },
-  );
+  server.tool('whoami', WHOAMI_DESCRIPTION, {}, async () => {
+    try {
+      const user = await withTimeout(api.getAuthUser(), toolTimeoutMs, 'whoami');
+      return { content: [{ type: 'text', text: JSON.stringify(user, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to load user');
+    }
+  });
 
-  server.tool(
-    'list_chains',
-    'Lists supported chains from GET /public-api/v1/metadata/chains (cached; respects Cache-Control / ETag when present).',
-    {},
-    async () => {
-      try {
-        const data = await withTimeout(metadata.getChains(), toolTimeoutMs, 'list_chains');
-        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
-      } catch (e) {
-        return toolErrorPayload(e);
-      }
-    },
-  );
+  server.tool('list_chains', LIST_CHAINS_DESCRIPTION, {}, async () => {
+    try {
+      const data = await withTimeout(metadata.getChains(), toolTimeoutMs, 'list_chains');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e);
+    }
+  });
 
-  server.tool('list_trigger_types', 'Lists trigger type metadata from GET /public-api/v1/metadata/trigger-types (cached).', {}, async () => {
+  server.tool('list_trigger_types', LIST_TRIGGER_TYPES_DESCRIPTION, {}, async () => {
     try {
       const data = await withTimeout(metadata.getTriggerTypes(), toolTimeoutMs, 'list_trigger_types');
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
@@ -77,7 +76,7 @@ async function main(): Promise<void> {
     }
   });
 
-  server.tool('list_payout_schemas', 'Lists payout schema metadata from GET /public-api/v1/metadata/payout-schemas (cached).', {}, async () => {
+  server.tool('list_payout_schemas', LIST_PAYOUT_SCHEMAS_DESCRIPTION, {}, async () => {
     try {
       const data = await withTimeout(metadata.getPayoutSchemas(), toolTimeoutMs, 'list_payout_schemas');
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
