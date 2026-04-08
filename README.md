@@ -2,6 +2,8 @@
 
 Fuul [Model Context Protocol](https://modelcontextprotocol.io/) server: OAuth login, authenticated API access, and tools for agents (e.g. `whoami`, metadata lists).
 
+Maintainers: [docs/AGENTS.md](docs/AGENTS.md) (tools ↔ API, env, write-tool conventions). Changes: [CHANGELOG.md](CHANGELOG.md).
+
 ## Requirements
 
 - **Node.js** 18+
@@ -95,6 +97,7 @@ Run `npm run build` after pulling changes. Re-run **`login`** when switching `FU
 | `npm run cli`   | Run CLI via `tsx` (`src/cli.ts`) |
 | `npm run dev`   | Run MCP via `tsx` (`src/index.ts`) |
 | `npm run lint`  | ESLint on `src/`               |
+| `npm run test`  | Vitest (unit / contract-style) |
 
 ## License
 
