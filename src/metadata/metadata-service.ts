@@ -1,4 +1,5 @@
 import { ApiRequestError, type FuulApiClient } from '../http/fuul-api-client.js';
+import { formatRateLimitMessage } from '../http/retry-after.js';
 
 /** Aligns with server {@link PUBLIC_API_METADATA_CACHE_TTL_MS} when Cache-Control is absent. */
 const DEFAULT_METADATA_FRESH_MS = 15 * 60 * 1000;
@@ -55,6 +56,9 @@ export class MetadataService {
     }
 
     if (res.status !== 200) {
+      if (res.status === 429) {
+        throw new ApiRequestError(formatRateLimitMessage(res.retryAfterSeconds), 429, res.data, res.retryAfterSeconds);
+      }
       throw new ApiRequestError(`Metadata request failed (HTTP ${res.status})`, res.status, res.data);
     }
 
