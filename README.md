@@ -175,13 +175,62 @@ npx @modelcontextprotocol/inspector node dist/index.js
 
 Run **`login`** before exercising tools that call the API.
 
-## Cursor (and similar clients)
+## Cursor and Claude Code (step by step)
 
-- **Command:** `node`
-- **Arguments:** `dist/index.js` (absolute path to this repo if needed)
-- **Working directory:** root of `mcp_server` (so `.env` loads)
+The MCP server is a **stdio** process: the client spawns `node` with `dist/index.js`. You must **login once in a terminal** before tools that call the API will work; there is no MCP tool for OAuth.
 
-Rebuild after pulls: `npm run build`. Re-run **`login`** when changing `FUUL_API_BASE_URL` (staging vs production).
+### 1. One-time setup
+
+1. Clone the repo, `cd mcp_server`, `npm ci`.
+2. `cp .env.example .env` and set `FUUL_API_BASE_URL` (e.g. staging `https://api.stg.fuul.xyz` or production).
+3. From the repo root: `npm run cli -- login` (browser opens), then `npm run cli -- whoami` to verify.
+4. `npm run build` so `dist/index.js` exists. After every `git pull` that changes code, run **`npm run build`** again.
+
+### 2. Cursor
+
+1. Open **Cursor Settings → MCP** (wording may vary slightly by version; look for **Model Context Protocol** / **MCP**).
+2. Add a new MCP server (or edit your user **`mcp.json`** if you manage config as JSON — see [Cursor MCP docs](https://docs.cursor.com/context/mcp)).
+3. Set:
+   - **Command:** `node`
+   - **Arguments:** absolute path to this repo’s `dist/index.js` (not relative).
+   - **Working directory (cwd):** absolute path to the **root of this repo** (so `dotenv` loads `.env`).
+4. Enable the server and use **Refresh** if the client shows it disconnected.
+5. In **Chat / Agent**, ask for Fuul operations in natural language (e.g. “list my projects with `list_projects`”). If you change `FUUL_API_BASE_URL` or tokens expire, run `npm run cli -- login` again in a terminal.
+
+**Example MCP config fragment** (adjust paths for your machine):
+
+```json
+{
+  "mcpServers": {
+    "fuul": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp_server/dist/index.js"],
+      "cwd": "/absolute/path/to/mcp_server"
+    }
+  }
+}
+```
+
+On Windows, use backslash paths or escaped backslashes in JSON, e.g. `"C:\\Users\\you\\mcp_server\\dist\\index.js"`.
+
+### 3. Claude Desktop
+
+1. Complete **§1** above.
+2. Open **Settings → Developer → Edit Config** and edit `claude_desktop_config.json`.
+3. Under `mcpServers`, add an entry with the same idea: `command` = `node`, `args` = full path to `dist/index.js`, and set `cwd` to the repo root if your client supports it (some configs use only `command` + `args`; if `cwd` is unsupported, rely on `env` or run from a wrapper script).
+
+Refer to [Anthropic MCP quickstart](https://docs.anthropic.com/en/docs/mcp) for the exact schema your Claude app version expects.
+
+### 4. Claude Code (CLI)
+
+Configure MCP in the way your **Claude Code** version documents (project or user MCP config). Point **stdio** at:
+
+- `node` + absolute path to `dist/index.js`, with **cwd** = repo root when possible.
+
+### 5. After updates or env changes
+
+- Re-run **`npm run build`** after pulling code changes.
+- Re-run **`npm run cli -- login`** when switching staging/production or when the API returns **401**.
 
 ## CI
 
