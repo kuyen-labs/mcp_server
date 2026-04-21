@@ -1,13 +1,39 @@
 # @fuul/mcp-server
 
-Fuul [Model Context Protocol](https://modelcontextprotocol.io/) server: OAuth login, metadata proxy tools, project/incentive/payout operations (read + confirmed writes), and rate-limit-aware API errors.
+Fuul [Model Context Protocol](https://modelcontextprotocol.io/) server: OAuth login (`fuul-mcp`), metadata proxy tools, project and affiliate analytics, incentive/payout operations (reads + confirmed writes), and rate-limit-aware errors.
 
-Maintainers: [docs/AGENTS.md](docs/AGENTS.md) (full tool ↔ HTTP map). Prompts / consumer: [docs/mcp-phase2/tool-prompts.md](docs/mcp-phase2/tool-prompts.md), [docs/mcp-phase2/CONSUMER.md](docs/mcp-phase2/CONSUMER.md).
+| Resource | Purpose |
+| -------- | ------- |
+| [docs/AGENTS.md](docs/AGENTS.md) | **Tool ↔ HTTP** map (audit, support, PR review) |
+| [docs/mcp-phase2/CONSUMER.md](docs/mcp-phase2/CONSUMER.md) | Staging/production URLs, minimum API expectations |
+| [docs/mcp-phase2/tool-prompts.md](docs/mcp-phase2/tool-prompts.md) | Sample prompts for LLM tooling |
+| [CHANGELOG.md](CHANGELOG.md) | Release notes |
+
+## Repository layout
+
+```
+mcp_server/
+├── src/
+│   ├── index.ts              # MCP stdio server + tool registration
+│   ├── cli.ts                # fuul-mcp login | whoami | logout
+│   ├── affiliate-portal/   # Affiliate stats URL builders + tests
+│   ├── agent/                # dry_run / confirmed for writes
+│   ├── auth/                 # OAuth + token store
+│   ├── http/                 # FuulApiClient, Nest-style query serialization
+│   ├── incentives/           # create/update program handlers
+│   ├── metadata/             # chains, trigger-types, payout-schemas cache
+│   ├── payouts/              # approve/reject batch handlers
+│   ├── tools/                # Zod schemas + LLM-oriented descriptions
+│   └── util/
+├── docs/
+├── .github/workflows/        # ci.yml (lint, test, build), publish.yml (npm on release)
+└── dist/                     # `npm run build` output (gitignored)
+```
 
 ## Requirements
 
 - **Node.js** 18+
-- Access to a running **fuul-server** (e.g. staging or production) with **Agent OAuth** configured (`FUUL_AGENT_OAUTH_*` on the API).
+- A running **fuul-server** (staging or production) with **Agent OAuth** (`FUUL_AGENT_OAUTH_*` on the API).
 
 ## Install
 
@@ -17,15 +43,15 @@ cd mcp_server
 npm ci
 ```
 
-Copy env template and adjust:
+Copy the env template and set `FUUL_API_BASE_URL` (and OAuth fields if not using defaults):
 
 ```bash
 cp .env.example .env
 ```
 
-Variables are read via **dotenv** from `.env` in the current working directory (see `.env.example`). You can also export the same names in your shell.
+Variables load via **dotenv** from `.env` in the **current working directory** when you start the MCP or CLI.
 
-## Run locally — CLI
+## Authentication (CLI)
 
 From the repo root (so `.env` is found):
 
@@ -35,69 +61,149 @@ npm run cli -- whoami
 npm run cli -- logout
 ```
 
-After `login`, tokens are stored under `~/.fuul/tokens.json` (or `%USERPROFILE%\.fuul\tokens.json` on Windows).
+Tokens are stored in `~/.fuul/tokens.json` (Windows: `%USERPROFILE%\.fuul\tokens.json`). After `login`, the MCP process uses the same file.
 
-To use the published-style binary after a build:
+With a build:
 
 ```bash
 npm run build
 node dist/cli.js login
 ```
 
-## Run locally — MCP (stdio)
+## Usage examples (MCP tools)
 
-Build and start the MCP process:
+Tools are invoked by the MCP client (e.g. Cursor) with a JSON payload. Parameters match [docs/AGENTS.md](docs/AGENTS.md). Below: **illustrative** shapes; replace UUIDs and identifiers with real values from your project.
+
+**Health / session**
+
+```json
+{}
+```
+Tool: `ping` — no API call.
+
+```json
+{}
+```
+Tool: `whoami` — `GET /api/v1/auth/user` (requires login).
+
+**Metadata (cached on server)**
+
+```json
+{}
+```
+Tools: `list_chains`, `list_trigger_types`, `list_payout_schemas`.
+
+**Projects and programs**
+
+```json
+{ "page": 1, "query": "acme" }
+```
+Tool: `list_projects`
+
+```json
+{ "project_id": "550e8400-e29b-41d4-a716-446655440000" }
+```
+Tools: `get_project`, `list_incentives`
+
+**Affiliate analytics (dashboard JWT; same auth as other project routes)**
+
+Single affiliate stats (encoded `user_identifier` string, same as dashboard affiliate management):
+
+```json
+{
+  "project_id": "550e8400-e29b-41d4-a716-446655440000",
+  "user_identifier": "evm:0x0000000000000000000000000000000000000000"
+}
+```
+Tool: `get_affiliate_portal_stats` — optional: `from`, `to`, `this_month`, `conversion_external_id`, `conversion_name`.
+
+Project-wide totals:
+
+```json
+{
+  "project_id": "550e8400-e29b-41d4-a716-446655440000",
+  "dateRange": "30d"
+}
+```
+Tool: `get_project_affiliate_total_stats` — optional filters: `statuses`, `regions`, `audiences`, `tiers`, `dateFrom`/`dateTo` with `dateRange: "custom"`.
+
+Breakdown by dimension (e.g. region):
+
+```json
+{
+  "project_id": "550e8400-e29b-41d4-a716-446655440000",
+  "groupBy": "region",
+  "dateRange": "30d"
+}
+```
+Tool: `get_project_affiliates_breakdown` — `groupBy` is required (`audience` | `tier` | `region` | `status`).
+
+**Writes (always `dry_run` first, then `confirmed: true`)**
+
+```json
+{
+  "project_id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Summer",
+  "trigger_ids": ["00000000-0000-4000-8000-000000000001"],
+  "payout_terms": [{ "type": "onchain_currency" }],
+  "dry_run": true
+}
+```
+Tool: `create_incentive_program` — second call with `"confirmed": true` executes `POST`.
+
+See tool descriptions in the client for payout approve/reject and `update_incentive_program` shapes.
+
+## Run MCP (stdio)
 
 ```bash
 npm run build
 npm start
 ```
 
-This runs `node dist/index.js` and speaks MCP over **stdio** (for Cursor, Claude Code, or the inspector).
-
-**Dev** without a prior build:
+Development without compiling first:
 
 ```bash
 npm run dev
 ```
 
-## Run locally — MCP Inspector
-
-Useful to call tools from a browser UI:
+### MCP Inspector
 
 ```bash
 npm run build
 npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
-Or with **tsx** (no `dist`):
-
-```bash
-npx @modelcontextprotocol/inspector npx tsx src/index.ts
-```
-
-Ensure you have run **`login`** first; the MCP process uses the same token file as the CLI.
+Run **`login`** before exercising tools that call the API.
 
 ## Cursor (and similar clients)
 
-Point the MCP server command at the built entry and set **cwd** to this repo so `.env` loads:
-
 - **Command:** `node`
-- **Arguments:** `dist/index.js` (full path to this repo’s `dist/index.js` if needed)
-- **Working directory:** root of `mcp_server`
+- **Arguments:** `dist/index.js` (absolute path to this repo if needed)
+- **Working directory:** root of `mcp_server` (so `.env` loads)
 
-Run `npm run build` after pulling changes. Re-run **`login`** when switching `FUUL_API_BASE_URL` (e.g. staging vs production).
+Rebuild after pulls: `npm run build`. Re-run **`login`** when changing `FUUL_API_BASE_URL` (staging vs production).
+
+## CI
+
+On every push/PR to `main`/`master`, GitHub Actions runs:
+
+1. `npm ci`
+2. `npm run lint`
+3. `npm run test`
+4. `npm run build`
+
+Publishing `@fuul/mcp-server` to npm is triggered by **GitHub Releases** (see [.github/workflows/publish.yml](.github/workflows/publish.yml); requires `NPM_TOKEN` secret).
 
 ## Scripts
 
-| Script        | Description                    |
-| ------------- | ------------------------------ |
+| Script | Description |
+| ------ | ----------- |
 | `npm run build` | Compile TypeScript → `dist/` |
-| `npm start`     | Run MCP server (`dist/index.js`) |
-| `npm run cli`   | Run CLI via `tsx` (`src/cli.ts`) |
-| `npm run dev`   | Run MCP via `tsx` (`src/index.ts`) |
-| `npm run lint`  | ESLint on `src/`               |
-| `npm run test`  | Vitest (unit / contract-style) |
+| `npm start` | MCP server (`node dist/index.js`) |
+| `npm run cli` | CLI via `tsx` (`src/cli.ts`) |
+| `npm run dev` | MCP via `tsx` (`src/index.ts`) |
+| `npm run lint` | ESLint on `src/` |
+| `npm run test` | Vitest |
 
 ## License
 

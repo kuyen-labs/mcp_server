@@ -69,3 +69,52 @@ export const payoutBatchActionInputSchema = writeConfirmationFieldsSchema.extend
 });
 
 export type PayoutBatchActionInput = z.infer<typeof payoutBatchActionInputSchema>;
+
+const dateRangePresetSchema = z.enum(['7d', '30d', '90d', 'MTD', 'QTD', 'custom', 'all']);
+
+/** GET .../affiliate-portal/stats — matches fuul-server GetAffiliateStatsDto query names. */
+export const getAffiliatePortalStatsSchema = z.object({
+  project_id: uuid,
+  user_identifier: z.string().min(1).describe('Encoded identifier string (e.g. evm:0x..., solana:...).'),
+  from: z.string().optional(),
+  to: z.string().optional(),
+  this_month: z.string().optional().describe('Use "true" for current month (mutually exclusive with from/to).'),
+  conversion_external_id: z.coerce.number().int().min(0).optional(),
+  conversion_name: z.string().optional(),
+});
+
+export type GetAffiliatePortalStatsInput = z.infer<typeof getAffiliatePortalStatsSchema>;
+
+/** GET .../affiliate-portal/total-stats — matches GetTotalStatsDto. */
+export const getProjectAffiliateTotalStatsSchema = z.object({
+  project_id: uuid,
+  statuses: z.array(z.string()).optional(),
+  regions: z.array(z.string()).optional(),
+  audiences: z.array(z.string()).optional(),
+  tiers: z.array(z.string().uuid()).optional(),
+  dateRange: dateRangePresetSchema.optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+});
+
+export type GetProjectAffiliateTotalStatsInput = z.infer<typeof getProjectAffiliateTotalStatsSchema>;
+
+const breakdownGroupBySchema = z.enum(['audience', 'tier', 'region', 'status']);
+const breakdownSortBySchema = z.enum(['totalReferralVolume', 'revenueFromReferrals', 'earnings', 'pointsPaid']);
+
+/** GET .../affiliate-portal/global-breakdown — matches GetProjectAffiliatesBreakdownDto (groupBy required). */
+export const getProjectAffiliatesBreakdownSchema = z.object({
+  project_id: uuid,
+  groupBy: breakdownGroupBySchema,
+  dateRange: dateRangePresetSchema.optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  sortBy: breakdownSortBySchema.optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
+  statuses: z.array(z.string()).optional(),
+  regions: z.array(z.string()).optional(),
+  audiences: z.array(z.string()).optional(),
+  tiers: z.array(z.string().uuid()).optional(),
+});
+
+export type GetProjectAffiliatesBreakdownInput = z.infer<typeof getProjectAffiliatesBreakdownSchema>;

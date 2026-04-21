@@ -16,6 +16,9 @@ Single map for tools ↔ HTTP, env, and write conventions. End-user setup: root 
 | `list_incentives` | `GET /api/v1/projects/:projectId/incentives` | Bearer |
 | `get_incentive` | `GET /api/v1/projects/:projectId/incentives/:conversionId` | Bearer |
 | `get_trigger` | `GET /api/v1/projects/:projectId/triggers/:triggerId` | Bearer |
+| `get_affiliate_portal_stats` | `GET /api/v1/projects/:projectId/affiliate-portal/stats` | Bearer |
+| `get_project_affiliate_total_stats` | `GET /api/v1/projects/:projectId/affiliate-portal/total-stats` | Bearer |
+| `get_project_affiliates_breakdown` | `GET /api/v1/projects/:projectId/affiliate-portal/global-breakdown` | Bearer |
 | `create_incentive_program` | `POST /api/v1/projects/:projectId/incentives` | Bearer + dry_run / confirmed |
 | `update_incentive_program` | `PATCH /api/v1/projects/:projectId/incentives/:conversionId` | Bearer + dry_run / confirmed |
 | `list_payouts_pending_approval` | `GET .../payouts/pending-approval` | Bearer |

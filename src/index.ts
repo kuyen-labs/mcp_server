@@ -1,6 +1,11 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
+import {
+  affiliatePortalStatsPath,
+  projectAffiliatesBreakdownPath,
+  projectAffiliateTotalStatsPath,
+} from './affiliate-portal/affiliate-portal-queries.js';
 import { WriteNotConfirmedError } from './agent/write-confirmation.js';
 import { OAuthClient } from './auth/oauth-client.js';
 import { TokenStore } from './auth/token-store.js';
@@ -13,7 +18,10 @@ import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import {
   APPROVE_PAYOUTS_DESCRIPTION,
   CREATE_INCENTIVE_PROGRAM_DESCRIPTION,
+  GET_AFFILIATE_PORTAL_STATS_DESCRIPTION,
   GET_INCENTIVE_DESCRIPTION,
+  GET_PROJECT_AFFILIATE_TOTAL_STATS_DESCRIPTION,
+  GET_PROJECT_AFFILIATES_BREAKDOWN_DESCRIPTION,
   GET_PROJECT_DESCRIPTION,
   GET_TRIGGER_DESCRIPTION,
   LIST_CHAINS_DESCRIPTION,
@@ -30,7 +38,10 @@ import {
 } from './tools/tool-descriptions.js';
 import {
   createIncentiveProgramInputSchema,
+  getAffiliatePortalStatsSchema,
   getIncentiveInputSchema,
+  getProjectAffiliatesBreakdownSchema,
+  getProjectAffiliateTotalStatsSchema,
   getTriggerInputSchema,
   listPayoutsPendingApprovalSchema,
   listProjectsInputSchema,
@@ -39,11 +50,8 @@ import {
   projectIdParamSchema,
   updateIncentiveProgramInputSchema,
 } from './tools/tool-schemas.js';
+import { compactQuery } from './util/compact-query.js';
 import { ToolTimeoutError, withTimeout } from './util/with-timeout.js';
-
-function compactQuery(params: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''));
-}
 
 function toolErrorPayload(e: unknown, httpDetail = 'Request failed'): { content: [{ type: 'text'; text: string }]; isError: true } {
   const message =
@@ -174,6 +182,46 @@ async function main(): Promise<void> {
       return toolErrorPayload(e, 'Failed to load trigger');
     }
   });
+
+  server.tool('get_affiliate_portal_stats', GET_AFFILIATE_PORTAL_STATS_DESCRIPTION, getAffiliatePortalStatsSchema.shape, async (args) => {
+    try {
+      const parsed = getAffiliatePortalStatsSchema.parse(args);
+      const data = await withTimeout(api.getJson(affiliatePortalStatsPath(parsed)), toolTimeoutMs, 'get_affiliate_portal_stats');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to load affiliate portal stats');
+    }
+  });
+
+  server.tool(
+    'get_project_affiliate_total_stats',
+    GET_PROJECT_AFFILIATE_TOTAL_STATS_DESCRIPTION,
+    getProjectAffiliateTotalStatsSchema.shape,
+    async (args) => {
+      try {
+        const parsed = getProjectAffiliateTotalStatsSchema.parse(args);
+        const data = await withTimeout(api.getJson(projectAffiliateTotalStatsPath(parsed)), toolTimeoutMs, 'get_project_affiliate_total_stats');
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      } catch (e) {
+        return toolErrorPayload(e, 'Failed to load project affiliate total stats');
+      }
+    },
+  );
+
+  server.tool(
+    'get_project_affiliates_breakdown',
+    GET_PROJECT_AFFILIATES_BREAKDOWN_DESCRIPTION,
+    getProjectAffiliatesBreakdownSchema.shape,
+    async (args) => {
+      try {
+        const parsed = getProjectAffiliatesBreakdownSchema.parse(args);
+        const data = await withTimeout(api.getJson(projectAffiliatesBreakdownPath(parsed)), toolTimeoutMs, 'get_project_affiliates_breakdown');
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      } catch (e) {
+        return toolErrorPayload(e, 'Failed to load project affiliates breakdown');
+      }
+    },
+  );
 
   server.tool('list_payouts_pending_approval', LIST_PAYOUTS_PENDING_APPROVAL_DESCRIPTION, listPayoutsPendingApprovalSchema.shape, async (args) => {
     try {

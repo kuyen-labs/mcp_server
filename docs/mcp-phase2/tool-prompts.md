@@ -23,6 +23,12 @@ Use in Cursor or eval harnesses to check tool selection and JSON arguments.
 - Approve payouts: `approve_payouts` with `payout_ids` or date filters; dry_run then confirmed.
 - Reject payouts: `reject_payouts` same as approve.
 
+## Affiliate analytics (read)
+
+- Affiliate stats for one `user_identifier` (`get_affiliate_portal_stats` with `project_id` + identifier string).
+- Project-wide totals (`get_project_affiliate_total_stats`; optional `dateRange`, filters).
+- Global breakdown by audience/tier/region/status (`get_project_affiliates_breakdown`; `groupBy` required).
+
 ## Payouts (read)
 
 - Pending approval payouts for project (`list_payouts_pending_approval`).

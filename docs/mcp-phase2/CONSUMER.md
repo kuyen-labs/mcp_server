@@ -13,7 +13,7 @@ Set `FUUL_API_BASE_URL` to the **origin** only (no `/api/v1` suffix).
 
 - **Agent OAuth** enabled (`FUUL_AGENT_OAUTH_*`) so `fuul-mcp login` completes.
 - **Authenticated metadata**: `GET /public-api/v1/metadata/*` (chains, trigger-types with `schema_status`, payout-schemas).
-- **Dashboard JWT** on: `GET/POST/PATCH` routes used by the tools above (projects, incentives, triggers, payouts).
+- **Dashboard JWT** on: `GET/POST/PATCH` routes used by the tools above (projects, incentives, triggers, payouts, affiliate-portal stats).
 
 Pin the server **git tag / release** to the deployment that includes Phase 1 `schema_status` on trigger-types metadata (required for `create_incentive_program` / `update_incentive_program`).
 

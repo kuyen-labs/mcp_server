@@ -50,3 +50,23 @@ export const APPROVE_PAYOUTS_DESCRIPTION =
   'Approves payouts: PATCH /api/v1/projects/:projectId/payouts/approve. Body: payout_ids OR date filters (server validates mutual exclusivity). dry_run then confirmed. Example dry_run: {"project_id":"<uuid>","payout_ids":["<uuid>"],"dry_run":true}.';
 
 export const REJECT_PAYOUTS_DESCRIPTION = 'Rejects payouts: PATCH /api/v1/projects/:projectId/payouts/reject. Same body rules as approve_payouts.';
+
+const RATE_LIMIT_HINT = ' If the API returns HTTP 429, wait Retry-After seconds (if present) before retrying.';
+
+export const GET_AFFILIATE_PORTAL_STATS_DESCRIPTION =
+  'Project affiliate stats for one user identifier: GET /api/v1/projects/:projectId/affiliate-portal/stats. ' +
+  'Requires dashboard JWT (same as other project tools). Query params match the dashboard affiliate management UI. ' +
+  'Example: {"project_id":"<uuid>","user_identifier":"evm:0x..."}.' +
+  RATE_LIMIT_HINT;
+
+export const GET_PROJECT_AFFILIATE_TOTAL_STATS_DESCRIPTION =
+  'Aggregated project-wide affiliate totals: GET /api/v1/projects/:projectId/affiliate-portal/total-stats. ' +
+  'Optional filters: statuses, regions, audiences, tiers, dateRange, dateFrom, dateTo (see fuul-server GetTotalStatsDto). ' +
+  'Example: {"project_id":"<uuid>"} or {"project_id":"<uuid>","dateRange":"30d"}.' +
+  RATE_LIMIT_HINT;
+
+export const GET_PROJECT_AFFILIATES_BREAKDOWN_DESCRIPTION =
+  'Affiliate breakdown for a project (by audience, tier, region, or status): GET /api/v1/projects/:projectId/affiliate-portal/global-breakdown. ' +
+  'groupBy is required (audience | tier | region | status). Optional sortBy, sortOrder, date filters, and dimension filters. ' +
+  'Example: {"project_id":"<uuid>","groupBy":"region","dateRange":"30d"}.' +
+  RATE_LIMIT_HINT;
