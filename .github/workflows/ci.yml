@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main, master]
 
+permissions:
+  contents: read
+
 # Separate jobs so each check appears on its own line in the PR (lint, test, build).
 jobs:
   lint:
