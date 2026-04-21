@@ -185,12 +185,11 @@ Rebuild after pulls: `npm run build`. Re-run **`login`** when changing `FUUL_API
 
 ## CI
 
-On every push/PR to `main`/`master`, GitHub Actions runs:
+On every push/PR to `main`/`master`, GitHub Actions runs three jobs in parallel (each appears as its own check on the PR: **lint**, **test**, **build**):
 
-1. `npm ci`
-2. `npm run lint`
-3. `npm run test`
-4. `npm run build`
+1. `npm ci` + `npm run lint`
+2. `npm ci` + `npm run test`
+3. `npm ci` + `npm run build`
 
 Publishing `@fuul/mcp-server` to npm is triggered by **GitHub Releases** (see [.github/workflows/publish.yml](.github/workflows/publish.yml); requires `NPM_TOKEN` secret).
 
