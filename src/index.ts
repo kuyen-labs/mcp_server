@@ -6,18 +6,15 @@ import {
   projectAffiliatesBreakdownPath,
   projectAffiliateTotalStatsPath,
 } from './affiliate-portal/affiliate-portal-queries.js';
-import { WriteNotConfirmedError } from './agent/write-confirmation.js';
+import { assertWriteConfirmedOrDryRun, WriteNotConfirmedError } from './agent/write-confirmation.js';
 import { OAuthClient } from './auth/oauth-client.js';
 import { TokenStore } from './auth/token-store.js';
 import { loadEnv } from './config/env.js';
 import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-api-client.js';
-import { runCreateIncentiveProgram, runUpdateIncentiveProgram } from './incentives/incentive-program-handlers.js';
-import { TriggerSchemaPolicyError } from './incentives/schema-status.js';
 import { MetadataService } from './metadata/metadata-service.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import {
   APPROVE_PAYOUTS_DESCRIPTION,
-  CREATE_INCENTIVE_PROGRAM_DESCRIPTION,
   GET_AFFILIATE_PORTAL_STATS_DESCRIPTION,
   GET_INCENTIVE_DESCRIPTION,
   GET_PROJECT_AFFILIATE_TOTAL_STATS_DESCRIPTION,
@@ -33,11 +30,11 @@ import {
   LIST_TRIGGER_TYPES_DESCRIPTION,
   PING_DESCRIPTION,
   REJECT_PAYOUTS_DESCRIPTION,
-  UPDATE_INCENTIVE_PROGRAM_DESCRIPTION,
+  UPDATE_PAYOUT_TERM_DESCRIPTION,
+  UPDATE_PROJECT_TIER_DESCRIPTION,
   WHOAMI_DESCRIPTION,
 } from './tools/tool-descriptions.js';
 import {
-  createIncentiveProgramInputSchema,
   getAffiliatePortalStatsSchema,
   getIncentiveInputSchema,
   getProjectAffiliatesBreakdownSchema,
@@ -48,7 +45,9 @@ import {
   listRewardsPayoutsSchema,
   payoutBatchActionInputSchema,
   projectIdParamSchema,
-  updateIncentiveProgramInputSchema,
+  updatePayoutTermInputSchema,
+  updateProjectTierFieldsSchema,
+  updateProjectTierInputSchema,
 } from './tools/tool-schemas.js';
 import { compactQuery } from './util/compact-query.js';
 import { ToolTimeoutError, withTimeout } from './util/with-timeout.js';
@@ -61,9 +60,7 @@ function toolErrorPayload(e: unknown, httpDetail = 'Request failed'): { content:
         ? e.message
         : e instanceof WriteNotConfirmedError
           ? e.message
-          : e instanceof TriggerSchemaPolicyError
-            ? e.message
-            : e instanceof ApiRequestError
+          : e instanceof ApiRequestError
               ? e.status === 401
                 ? `${httpDetail} (HTTP ${e.status}). Run \`fuul-mcp login\` if you are not authenticated.`
                 : e.message
@@ -279,23 +276,55 @@ async function main(): Promise<void> {
     }
   });
 
-  server.tool('create_incentive_program', CREATE_INCENTIVE_PROGRAM_DESCRIPTION, createIncentiveProgramInputSchema.shape, async (args) => {
+  server.tool('update_payout_term', UPDATE_PAYOUT_TERM_DESCRIPTION, updatePayoutTermInputSchema.shape, async (args) => {
     try {
-      const parsed = createIncentiveProgramInputSchema.parse(args);
-      const data = await withTimeout(runCreateIncentiveProgram(api, metadata, parsed), toolTimeoutMs, 'create_incentive_program');
+      const parsed = updatePayoutTermInputSchema.parse(args);
+      assertWriteConfirmedOrDryRun(parsed);
+      const path = `/api/v1/projects/${parsed.project_id}/conversions/${parsed.conversion_id}/payout_terms/${parsed.payout_term_id}`;
+      if (parsed.dry_run === true) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ dry_run: true, would_patch: path, body: parsed.payout_term }, null, 2),
+            },
+          ],
+        };
+      }
+      const data = await withTimeout(api.patchJson(path, parsed.payout_term), toolTimeoutMs, 'update_payout_term');
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
-      return toolErrorPayload(e, 'Failed to create incentive');
+      return toolErrorPayload(e, 'Failed to update payout term');
     }
   });
 
-  server.tool('update_incentive_program', UPDATE_INCENTIVE_PROGRAM_DESCRIPTION, updateIncentiveProgramInputSchema.shape, async (args) => {
+  server.tool('update_project_tier', UPDATE_PROJECT_TIER_DESCRIPTION, updateProjectTierFieldsSchema.shape, async (args) => {
     try {
-      const parsed = updateIncentiveProgramInputSchema.parse(args);
-      const data = await withTimeout(runUpdateIncentiveProgram(api, metadata, parsed), toolTimeoutMs, 'update_incentive_program');
+      const parsed = updateProjectTierInputSchema.parse(args);
+      assertWriteConfirmedOrDryRun(parsed);
+      const path = `/api/v1/projects/${parsed.project_id}/tiers/${parsed.tier_id}`;
+      const body: Record<string, unknown> = {};
+      if (parsed.name !== undefined) {
+        body.name = parsed.name;
+      }
+      if (parsed.description !== undefined) {
+        body.description = parsed.description;
+      }
+      if (parsed.rank !== undefined) {
+        body.rank = parsed.rank;
+      }
+      if (parsed.audience_id !== undefined) {
+        body.audience_id = parsed.audience_id;
+      }
+      if (parsed.dry_run === true) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ dry_run: true, would_patch: path, body }, null, 2) }],
+        };
+      }
+      const data = await withTimeout(api.patchJson(path, body), toolTimeoutMs, 'update_project_tier');
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
-      return toolErrorPayload(e, 'Failed to update incentive');
+      return toolErrorPayload(e, 'Failed to update project tier');
     }
   });
 

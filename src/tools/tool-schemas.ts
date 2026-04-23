@@ -25,24 +25,32 @@ export const getTriggerInputSchema = z.object({
 
 export const payoutTermSchema = z.record(z.string(), z.unknown());
 
-export const createIncentiveProgramInputSchema = writeConfirmationFieldsSchema.extend({
+/** Body must match server PayoutTermDto (see fuul-server payouts/payout-terms/dto/payout-term.dto). */
+export const updatePayoutTermInputSchema = writeConfirmationFieldsSchema.extend({
   project_id: uuid,
-  name: z.string().min(1),
-  trigger_ids: z.array(uuid).min(1),
-  payout_terms: z.array(payoutTermSchema).min(1).describe('Objects matching server PayoutTermDto (see fuul-server).'),
+  conversion_id: uuid.describe('Incentive (conversion) UUID'),
+  payout_term_id: uuid,
+  payout_term: payoutTermSchema.describe('Full payout term payload as returned by get_incentive / GET payout_term, with edits applied.'),
 });
 
-export type CreateIncentiveProgramInput = z.infer<typeof createIncentiveProgramInputSchema>;
+export type UpdatePayoutTermInput = z.infer<typeof updatePayoutTermInputSchema>;
 
-export const updateIncentiveProgramInputSchema = writeConfirmationFieldsSchema.extend({
+/** Registered on MCP tools; use {@link updateProjectTierInputSchema} in handlers for full validation. */
+export const updateProjectTierFieldsSchema = writeConfirmationFieldsSchema.extend({
   project_id: uuid,
-  conversion_id: uuid,
-  name: z.string().min(1),
-  trigger_ids: z.array(uuid).min(1),
-  payout_terms: z.array(payoutTermSchema).min(1),
+  tier_id: uuid,
+  name: z.string().min(1).max(100).optional(),
+  description: z.union([z.string().min(1).max(500), z.null()]).optional(),
+  rank: z.coerce.number().int().min(1).optional(),
+  audience_id: z.string().uuid().nullable().optional(),
 });
 
-export type UpdateIncentiveProgramInput = z.infer<typeof updateIncentiveProgramInputSchema>;
+export const updateProjectTierInputSchema = updateProjectTierFieldsSchema.refine(
+  (v) => v.name != null || v.description !== undefined || v.rank != null || v.audience_id !== undefined,
+  { message: 'Provide at least one of: name, description, rank, audience_id' },
+);
+
+export type UpdateProjectTierInput = z.infer<typeof updateProjectTierInputSchema>;
 
 export const listPayoutsPendingApprovalSchema = z.object({
   project_id: uuid,
