@@ -1,0 +1,19 @@
+{
+  "name": "fuul-mcp",
+  "version": "0.2.0",
+  "description": "Fuul affiliate protocol: MCP tools for projects, analytics, incentives, and payouts",
+  "author": {
+    "name": "Fuul Team"
+  },
+  "homepage": "https://github.com/kuyen-labs/mcp_server",
+  "repository": "https://github.com/kuyen-labs/mcp_server",
+  "license": "MIT",
+  "mcpServers": "./.mcp.json",
+  "userConfig": {
+    "FUUL_API_BASE_URL": {
+      "description": "Fuul API origin (no trailing slash). Production: https://api.fuul.xyz. Staging: https://api.stg.fuul.xyz",
+      "default": "https://api.fuul.xyz",
+      "required": false
+    }
+  }
+}
