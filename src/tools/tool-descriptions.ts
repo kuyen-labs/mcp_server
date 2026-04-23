@@ -30,15 +30,22 @@ export const GET_INCENTIVE_DESCRIPTION =
 export const GET_TRIGGER_DESCRIPTION =
   'Gets trigger details (including triggerType for metadata checks): GET /api/v1/projects/:projectId/triggers/:triggerId. Example: {"project_id":"<uuid>","trigger_id":"<uuid>"}.';
 
-export const CREATE_INCENTIVE_PROGRAM_DESCRIPTION =
-  'Creates an incentive (conversion + payout terms): POST /api/v1/projects/:projectId/incentives with body {name, trigger_ids, payout_terms}. ' +
-  'Mandatory flow: first call with dry_run:true (validates trigger types against list_trigger_types schema_status; must be "present"). ' +
-  'Second call with confirmed:true executes POST. payout_terms must match server PayoutTermDto. ' +
-  'Example dry_run: {"project_id":"<uuid>","name":"Summer","trigger_ids":["<trigger-uuid>"],"payout_terms":[{...}],"dry_run":true}.';
+export const UPDATE_PAYOUT_TERM_DESCRIPTION =
+  'Updates one payout term on a draft conversion: PATCH /api/v1/projects/:projectId/conversions/:conversionId/payout_terms/:payoutTermId. ' +
+  'Body is a single PayoutTermDto (use get_incentive or GET the payout term, modify, send as payout_term). dry_run then confirmed. ' +
+  'Example dry_run: {"project_id":"<uuid>","conversion_id":"<uuid>","payout_term_id":"<uuid>","payout_term":{...},"dry_run":true}.';
 
-export const UPDATE_INCENTIVE_PROGRAM_DESCRIPTION =
-  'Updates an incentive: PATCH /api/v1/projects/:projectId/incentives/:conversionId with same body shape as create. Use dry_run then confirmed like create_incentive_program. ' +
-  'Example: add conversion_id and same fields as create.';
+export const UPDATE_PROJECT_TIER_DESCRIPTION =
+  'Updates a project affiliate tier: PATCH /api/v1/projects/:projectId/tiers/:tierId. Optional fields: name, description, rank, audience_id (null clears audience). ' +
+  'At least one field required. dry_run then confirmed. Example: {"project_id":"<uuid>","tier_id":"<uuid>","rank":2,"dry_run":true}.';
+
+export const UPDATE_AUDIENCE_DESCRIPTION =
+  'Updates an audience (user list): PATCH /api/v1/projects/:projectId/audiences/:audienceId. Body matches CreateOrUpdateAudienceDto: name (required), optional conditions[] (signature + parameters), condition_match_mode "any"|"all" (required if conditions non-empty), contractId. ' +
+  'dry_run then confirmed. Example dry_run: {"project_id":"<uuid>","audience_id":"<uuid>","name":"VIP","dry_run":true}.';
+
+export const UPDATE_TRIGGER_DESCRIPTION =
+  'Updates a trigger: PATCH /api/v1/projects/:projectId/triggers/:triggerId. Partial body matching UpdateTriggerDto (name, description, event_type, expressions, payable, ref, contract_ids as single-element array, etc.). ' +
+  'At least one patch field required. dry_run then confirmed. Use get_trigger first for current state.';
 
 export const LIST_PAYOUTS_PENDING_APPROVAL_DESCRIPTION =
   'Lists payouts pending approval: GET /api/v1/projects/:projectId/payouts/pending-approval. Optional page, page_size. Example: {"project_id":"<uuid>","page":1,"page_size":50}.';

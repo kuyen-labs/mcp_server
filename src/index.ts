@@ -6,18 +6,15 @@ import {
   projectAffiliatesBreakdownPath,
   projectAffiliateTotalStatsPath,
 } from './affiliate-portal/affiliate-portal-queries.js';
-import { WriteNotConfirmedError } from './agent/write-confirmation.js';
+import { assertWriteConfirmedOrDryRun, WriteNotConfirmedError } from './agent/write-confirmation.js';
 import { OAuthClient } from './auth/oauth-client.js';
 import { TokenStore } from './auth/token-store.js';
 import { loadEnv } from './config/env.js';
 import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-api-client.js';
-import { runCreateIncentiveProgram, runUpdateIncentiveProgram } from './incentives/incentive-program-handlers.js';
-import { TriggerSchemaPolicyError } from './incentives/schema-status.js';
 import { MetadataService } from './metadata/metadata-service.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import {
   APPROVE_PAYOUTS_DESCRIPTION,
-  CREATE_INCENTIVE_PROGRAM_DESCRIPTION,
   GET_AFFILIATE_PORTAL_STATS_DESCRIPTION,
   GET_INCENTIVE_DESCRIPTION,
   GET_PROJECT_AFFILIATE_TOTAL_STATS_DESCRIPTION,
@@ -33,11 +30,13 @@ import {
   LIST_TRIGGER_TYPES_DESCRIPTION,
   PING_DESCRIPTION,
   REJECT_PAYOUTS_DESCRIPTION,
-  UPDATE_INCENTIVE_PROGRAM_DESCRIPTION,
+  UPDATE_AUDIENCE_DESCRIPTION,
+  UPDATE_PAYOUT_TERM_DESCRIPTION,
+  UPDATE_PROJECT_TIER_DESCRIPTION,
+  UPDATE_TRIGGER_DESCRIPTION,
   WHOAMI_DESCRIPTION,
 } from './tools/tool-descriptions.js';
 import {
-  createIncentiveProgramInputSchema,
   getAffiliatePortalStatsSchema,
   getIncentiveInputSchema,
   getProjectAffiliatesBreakdownSchema,
@@ -48,7 +47,13 @@ import {
   listRewardsPayoutsSchema,
   payoutBatchActionInputSchema,
   projectIdParamSchema,
-  updateIncentiveProgramInputSchema,
+  updateAudienceFieldsSchema,
+  updateAudienceInputSchema,
+  updatePayoutTermInputSchema,
+  updateProjectTierFieldsSchema,
+  updateProjectTierInputSchema,
+  updateTriggerFieldsSchema,
+  updateTriggerInputSchema,
 } from './tools/tool-schemas.js';
 import { compactQuery } from './util/compact-query.js';
 import { ToolTimeoutError, withTimeout } from './util/with-timeout.js';
@@ -61,9 +66,7 @@ function toolErrorPayload(e: unknown, httpDetail = 'Request failed'): { content:
         ? e.message
         : e instanceof WriteNotConfirmedError
           ? e.message
-          : e instanceof TriggerSchemaPolicyError
-            ? e.message
-            : e instanceof ApiRequestError
+          : e instanceof ApiRequestError
               ? e.status === 401
                 ? `${httpDetail} (HTTP ${e.status}). Run \`fuul-mcp login\` if you are not authenticated.`
                 : e.message
@@ -279,23 +282,145 @@ async function main(): Promise<void> {
     }
   });
 
-  server.tool('create_incentive_program', CREATE_INCENTIVE_PROGRAM_DESCRIPTION, createIncentiveProgramInputSchema.shape, async (args) => {
+  server.tool('update_payout_term', UPDATE_PAYOUT_TERM_DESCRIPTION, updatePayoutTermInputSchema.shape, async (args) => {
     try {
-      const parsed = createIncentiveProgramInputSchema.parse(args);
-      const data = await withTimeout(runCreateIncentiveProgram(api, metadata, parsed), toolTimeoutMs, 'create_incentive_program');
+      const parsed = updatePayoutTermInputSchema.parse(args);
+      assertWriteConfirmedOrDryRun(parsed);
+      const path = `/api/v1/projects/${parsed.project_id}/conversions/${parsed.conversion_id}/payout_terms/${parsed.payout_term_id}`;
+      if (parsed.dry_run === true) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ dry_run: true, would_patch: path, body: parsed.payout_term }, null, 2),
+            },
+          ],
+        };
+      }
+      const data = await withTimeout(api.patchJson(path, parsed.payout_term), toolTimeoutMs, 'update_payout_term');
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
-      return toolErrorPayload(e, 'Failed to create incentive');
+      return toolErrorPayload(e, 'Failed to update payout term');
     }
   });
 
-  server.tool('update_incentive_program', UPDATE_INCENTIVE_PROGRAM_DESCRIPTION, updateIncentiveProgramInputSchema.shape, async (args) => {
+  server.tool('update_audience', UPDATE_AUDIENCE_DESCRIPTION, updateAudienceFieldsSchema.shape, async (args) => {
     try {
-      const parsed = updateIncentiveProgramInputSchema.parse(args);
-      const data = await withTimeout(runUpdateIncentiveProgram(api, metadata, parsed), toolTimeoutMs, 'update_incentive_program');
+      const parsed = updateAudienceInputSchema.parse(args);
+      assertWriteConfirmedOrDryRun(parsed);
+      const path = `/api/v1/projects/${parsed.project_id}/audiences/${parsed.audience_id}`;
+      const body: Record<string, unknown> = { name: parsed.name };
+      if (parsed.conditions !== undefined) {
+        body.conditions = parsed.conditions;
+      }
+      if (parsed.condition_match_mode !== undefined) {
+        body.condition_match_mode = parsed.condition_match_mode;
+      }
+      if (parsed.contractId !== undefined) {
+        body.contractId = parsed.contractId;
+      }
+      if (parsed.dry_run === true) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ dry_run: true, would_patch: path, body }, null, 2) }],
+        };
+      }
+      const data = await withTimeout(api.patchJson(path, body), toolTimeoutMs, 'update_audience');
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
-      return toolErrorPayload(e, 'Failed to update incentive');
+      return toolErrorPayload(e, 'Failed to update audience');
+    }
+  });
+
+  server.tool('update_trigger', UPDATE_TRIGGER_DESCRIPTION, updateTriggerFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = updateTriggerInputSchema.parse(args);
+      assertWriteConfirmedOrDryRun(parsed);
+      const path = `/api/v1/projects/${parsed.project_id}/triggers/${parsed.trigger_id}`;
+      const body: Record<string, unknown> = {};
+      if (parsed.name !== undefined) {
+        body.name = parsed.name;
+      }
+      if (parsed.description !== undefined) {
+        body.description = parsed.description;
+      }
+      if (parsed.event_type !== undefined) {
+        body.event_type = parsed.event_type;
+      }
+      if (parsed.condition_expression !== undefined) {
+        body.condition_expression = parsed.condition_expression;
+      }
+      if (parsed.amount_expression !== undefined) {
+        body.amount_expression = parsed.amount_expression;
+      }
+      if (parsed.volume_expression !== undefined) {
+        body.volume_expression = parsed.volume_expression;
+      }
+      if (parsed.revenue_expression !== undefined) {
+        body.revenue_expression = parsed.revenue_expression;
+      }
+      if (parsed.currency_expression !== undefined) {
+        body.currency_expression = parsed.currency_expression;
+      }
+      if (parsed.volume_currency_expression !== undefined) {
+        body.volume_currency_expression = parsed.volume_currency_expression;
+      }
+      if (parsed.revenue_currency_expression !== undefined) {
+        body.revenue_currency_expression = parsed.revenue_currency_expression;
+      }
+      if (parsed.end_user_identifier_property !== undefined) {
+        body.end_user_identifier_property = parsed.end_user_identifier_property;
+      }
+      if (parsed.end_user_identifier_expression !== undefined) {
+        body.end_user_identifier_expression = parsed.end_user_identifier_expression;
+      }
+      if (parsed.payable !== undefined) {
+        body.payable = parsed.payable;
+      }
+      if (parsed.ref !== undefined) {
+        body.ref = parsed.ref;
+      }
+      if (parsed.contract_ids !== undefined) {
+        body.contract_ids = parsed.contract_ids;
+      }
+      if (parsed.dry_run === true) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ dry_run: true, would_patch: path, body }, null, 2) }],
+        };
+      }
+      const data = await withTimeout(api.patchJson(path, body), toolTimeoutMs, 'update_trigger');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to update trigger');
+    }
+  });
+
+  server.tool('update_project_tier', UPDATE_PROJECT_TIER_DESCRIPTION, updateProjectTierFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = updateProjectTierInputSchema.parse(args);
+      assertWriteConfirmedOrDryRun(parsed);
+      const path = `/api/v1/projects/${parsed.project_id}/tiers/${parsed.tier_id}`;
+      const body: Record<string, unknown> = {};
+      if (parsed.name !== undefined) {
+        body.name = parsed.name;
+      }
+      if (parsed.description !== undefined) {
+        body.description = parsed.description;
+      }
+      if (parsed.rank !== undefined) {
+        body.rank = parsed.rank;
+      }
+      if (parsed.audience_id !== undefined) {
+        body.audience_id = parsed.audience_id;
+      }
+      if (parsed.dry_run === true) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ dry_run: true, would_patch: path, body }, null, 2) }],
+        };
+      }
+      const data = await withTimeout(api.patchJson(path, body), toolTimeoutMs, 'update_project_tier');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to update project tier');
     }
   });
 

@@ -25,24 +25,97 @@ export const getTriggerInputSchema = z.object({
 
 export const payoutTermSchema = z.record(z.string(), z.unknown());
 
-export const createIncentiveProgramInputSchema = writeConfirmationFieldsSchema.extend({
+/** Body must match server PayoutTermDto (see fuul-server payouts/payout-terms/dto/payout-term.dto). */
+export const updatePayoutTermInputSchema = writeConfirmationFieldsSchema.extend({
   project_id: uuid,
-  name: z.string().min(1),
-  trigger_ids: z.array(uuid).min(1),
-  payout_terms: z.array(payoutTermSchema).min(1).describe('Objects matching server PayoutTermDto (see fuul-server).'),
+  conversion_id: uuid.describe('Incentive (conversion) UUID'),
+  payout_term_id: uuid,
+  payout_term: payoutTermSchema.describe('Full payout term payload as returned by get_incentive / GET payout_term, with edits applied.'),
 });
 
-export type CreateIncentiveProgramInput = z.infer<typeof createIncentiveProgramInputSchema>;
+export type UpdatePayoutTermInput = z.infer<typeof updatePayoutTermInputSchema>;
 
-export const updateIncentiveProgramInputSchema = writeConfirmationFieldsSchema.extend({
+/** Registered on MCP tools; use {@link updateProjectTierInputSchema} in handlers for full validation. */
+export const updateProjectTierFieldsSchema = writeConfirmationFieldsSchema.extend({
   project_id: uuid,
-  conversion_id: uuid,
-  name: z.string().min(1),
-  trigger_ids: z.array(uuid).min(1),
-  payout_terms: z.array(payoutTermSchema).min(1),
+  tier_id: uuid,
+  name: z.string().min(1).max(100).optional(),
+  description: z.union([z.string().min(1).max(500), z.null()]).optional(),
+  rank: z.coerce.number().int().min(1).optional(),
+  audience_id: z.string().uuid().nullable().optional(),
 });
 
-export type UpdateIncentiveProgramInput = z.infer<typeof updateIncentiveProgramInputSchema>;
+export const updateProjectTierInputSchema = updateProjectTierFieldsSchema.refine(
+  (v) => v.name != null || v.description !== undefined || v.rank != null || v.audience_id !== undefined,
+  { message: 'Provide at least one of: name, description, rank, audience_id' },
+);
+
+export type UpdateProjectTierInput = z.infer<typeof updateProjectTierInputSchema>;
+
+const audienceConditionSchema = z.object({
+  signature: z.string(),
+  parameters: z.record(z.string(), z.unknown()),
+});
+
+/** Registered on MCP tools; use {@link updateAudienceInputSchema} in handlers. */
+export const updateAudienceFieldsSchema = writeConfirmationFieldsSchema.extend({
+  project_id: uuid,
+  audience_id: uuid,
+  name: z.string().min(1),
+  conditions: z.array(audienceConditionSchema).optional(),
+  condition_match_mode: z.enum(['any', 'all']).optional().describe('Required when conditions is non-empty.'),
+  contractId: z.string().optional(),
+});
+
+export const updateAudienceInputSchema = updateAudienceFieldsSchema.refine(
+  (v) => !v.conditions || v.conditions.length === 0 || (v.condition_match_mode != null && v.condition_match_mode.length > 0),
+  { message: 'condition_match_mode is required when conditions is non-empty' },
+);
+
+export type UpdateAudienceInput = z.infer<typeof updateAudienceInputSchema>;
+
+/** Registered on MCP tools; use {@link updateTriggerInputSchema} in handlers. */
+export const updateTriggerFieldsSchema = writeConfirmationFieldsSchema.extend({
+  project_id: uuid,
+  trigger_id: uuid,
+  name: z.string().optional(),
+  description: z.string().optional(),
+  event_type: z.string().optional(),
+  condition_expression: z.string().optional(),
+  amount_expression: z.string().optional(),
+  volume_expression: z.string().optional(),
+  revenue_expression: z.string().optional(),
+  currency_expression: z.string().optional(),
+  volume_currency_expression: z.string().optional(),
+  revenue_currency_expression: z.string().optional(),
+  end_user_identifier_property: z.string().optional(),
+  end_user_identifier_expression: z.string().optional(),
+  payable: z.boolean().optional(),
+  ref: z.string().optional(),
+  contract_ids: z.array(uuid).length(1).optional().describe('Exactly one contract UUID when updating on-chain contract event triggers.'),
+});
+
+export const updateTriggerInputSchema = updateTriggerFieldsSchema.refine(
+  (v) =>
+    v.name !== undefined ||
+    v.description !== undefined ||
+    v.event_type !== undefined ||
+    v.condition_expression !== undefined ||
+    v.amount_expression !== undefined ||
+    v.volume_expression !== undefined ||
+    v.revenue_expression !== undefined ||
+    v.currency_expression !== undefined ||
+    v.volume_currency_expression !== undefined ||
+    v.revenue_currency_expression !== undefined ||
+    v.end_user_identifier_property !== undefined ||
+    v.end_user_identifier_expression !== undefined ||
+    v.payable !== undefined ||
+    v.ref !== undefined ||
+    v.contract_ids !== undefined,
+  { message: 'Provide at least one trigger field to patch (e.g. name, description, event_type, expressions, contract_ids).' },
+);
+
+export type UpdateTriggerInput = z.infer<typeof updateTriggerInputSchema>;
 
 export const listPayoutsPendingApprovalSchema = z.object({
   project_id: uuid,
