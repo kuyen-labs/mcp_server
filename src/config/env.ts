@@ -13,12 +13,16 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema> & { debug: boolean };
 
+function unsetIfEmpty(value: string | undefined): string | undefined {
+  return value === undefined || value === '' ? undefined : value;
+}
+
 export function loadEnv(processEnv: NodeJS.ProcessEnv = process.env): Env {
   const base = envSchema.parse({
-    FUUL_API_BASE_URL: processEnv.FUUL_API_BASE_URL,
-    FUUL_OAUTH_CLIENT_ID: processEnv.FUUL_OAUTH_CLIENT_ID,
-    FUUL_OAUTH_REDIRECT_URI: processEnv.FUUL_OAUTH_REDIRECT_URI,
-    FUUL_MCP_TOOL_TIMEOUT_MS: processEnv.FUUL_MCP_TOOL_TIMEOUT_MS,
+    FUUL_API_BASE_URL: unsetIfEmpty(processEnv.FUUL_API_BASE_URL),
+    FUUL_OAUTH_CLIENT_ID: unsetIfEmpty(processEnv.FUUL_OAUTH_CLIENT_ID),
+    FUUL_OAUTH_REDIRECT_URI: unsetIfEmpty(processEnv.FUUL_OAUTH_REDIRECT_URI),
+    FUUL_MCP_TOOL_TIMEOUT_MS: unsetIfEmpty(processEnv.FUUL_MCP_TOOL_TIMEOUT_MS),
   });
   return {
     ...base,

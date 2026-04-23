@@ -1,5 +1,7 @@
 # Consumer notes
 
+Index of all documentation: [docs/README.md](../README.md).
+
 ## URLs
 
 | Environment | API | App (OAuth browser step) |

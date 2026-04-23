@@ -1,6 +1,7 @@
 # Sample prompts (tool descriptions)
 
-Use in Cursor or eval harnesses to check tool selection and JSON arguments.
+Use in Cursor or eval harnesses to check tool selection and JSON arguments.  
+Documentation index: [docs/README.md](../README.md).
 
 ## Metadata
 

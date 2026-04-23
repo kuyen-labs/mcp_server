@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "fuul": {
+      "command": "npx",
+      "args": ["-y", "@fuul/mcp-server@latest", "fuul-mcp-server"],
+      "env": {
+        "FUUL_API_BASE_URL": "${user_config.FUUL_API_BASE_URL}"
+      }
+    }
+  }
+}

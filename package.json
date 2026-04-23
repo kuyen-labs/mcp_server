@@ -1,12 +1,14 @@
 {
   "name": "@fuul/mcp-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Fuul MCP server for program management via MCP-compatible clients",
   "keywords": [
     "Fuul",
     "Fuul Protocol",
     "MCP",
-    "Model Context Protocol"
+    "Model Context Protocol",
+    "claude-code",
+    "claude-plugin"
   ],
   "author": "Fuul Team",
   "license": "MIT",
@@ -20,7 +22,8 @@
     "dist"
   ],
   "bin": {
-    "fuul-mcp": "./dist/cli.js"
+    "fuul-mcp": "./dist/cli.js",
+    "fuul-mcp-server": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",

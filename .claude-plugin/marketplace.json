@@ -1,0 +1,17 @@
+{
+  "name": "fuul-mcp",
+  "owner": {
+    "name": "Fuul",
+    "url": "https://fuul.xyz"
+  },
+  "metadata": {
+    "description": "Fuul MCP server and Claude Code skill: projects, affiliate analytics, incentives, and payouts."
+  },
+  "plugins": [
+    {
+      "name": "fuul-mcp",
+      "source": "./plugins/fuul-mcp",
+      "description": "MCP server plus skill for Fuul program management, affiliate stats, and payout operations from Claude Code."
+    }
+  ]
+}

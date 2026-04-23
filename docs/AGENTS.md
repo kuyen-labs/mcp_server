@@ -1,6 +1,6 @@
 # MCP server — maintainer reference
 
-Single map for tools ↔ HTTP, env, and write conventions. End-user setup: root [README.md](../README.md).
+Single map for tools ↔ HTTP, env, and write conventions. Documentation index: [docs/README.md](./README.md). End-user setup: root [README.md](../README.md).
 
 ## Tools → HTTP
 

@@ -1,254 +1,214 @@
 # @fuul/mcp-server
 
-Fuul [Model Context Protocol](https://modelcontextprotocol.io/) server: OAuth login (`fuul-mcp`), metadata proxy tools, project and affiliate analytics, incentive/payout operations (reads + confirmed writes), and rate-limit-aware errors.
+Fuul [Model Context Protocol](https://modelcontextprotocol.io/) server: OAuth CLI (`fuul-mcp`), stdio MCP entry (`fuul-mcp-server`), metadata tools, project and affiliate analytics, incentive and payout operations (reads plus `dry_run` / `confirmed` writes), and rate-limit-aware errors.
+
+## Documentation
 
 | Resource | Purpose |
 | -------- | ------- |
-| [docs/AGENTS.md](docs/AGENTS.md) | **Tool ↔ HTTP** map (audit, support, PR review) |
-| [docs/mcp-phase2/CONSUMER.md](docs/mcp-phase2/CONSUMER.md) | Staging/production URLs, minimum API expectations |
-| [docs/mcp-phase2/tool-prompts.md](docs/mcp-phase2/tool-prompts.md) | Sample prompts for LLM tooling |
+| [docs/README.md](docs/README.md) | Index of all docs in this repo |
+| [docs/AGENTS.md](docs/AGENTS.md) | Tool ↔ HTTP map (audit, support, PR review) |
+| [docs/mcp-phase2/CONSUMER.md](docs/mcp-phase2/CONSUMER.md) | Staging/production URLs, API expectations |
+| [docs/mcp-phase2/tool-prompts.md](docs/mcp-phase2/tool-prompts.md) | Sample prompts for tooling and evals |
 | [CHANGELOG.md](CHANGELOG.md) | Release notes |
 
-## Repository layout
+## Install (pick one path)
 
-```
-mcp_server/
-├── src/
-│   ├── index.ts              # MCP stdio server + tool registration
-│   ├── cli.ts                # fuul-mcp login | whoami | logout
-│   ├── affiliate-portal/   # Affiliate stats URL builders + tests
-│   ├── agent/                # dry_run / confirmed for writes
-│   ├── auth/                 # OAuth + token store
-│   ├── http/                 # FuulApiClient, Nest-style query serialization
-│   ├── incentives/           # create/update program handlers
-│   ├── metadata/             # chains, trigger-types, payout-schemas cache
-│   ├── payouts/              # approve/reject batch handlers
-│   ├── tools/                # Zod schemas + LLM-oriented descriptions
-│   └── util/
-├── docs/
-├── .github/workflows/        # ci.yml (lint, test, build), publish.yml (npm on release)
-└── dist/                     # `npm run build` output (gitignored)
+### 1. Claude Code plugin (marketplace)
+
+Adds the MCP server plus a **skill** that documents how to use Fuul tools.
+
+In **Claude Code**:
+
+```text
+/plugin marketplace add kuyen-labs/mcp_server
+/plugin install fuul-mcp@fuul-mcp
 ```
 
-## Requirements
-
-- **Node.js** 18+
-- A running **fuul-server** (staging or production) with **Agent OAuth** (`FUUL_AGENT_OAUTH_*` on the API).
-
-## Install
+One-time OAuth in a terminal (same tokens the MCP uses):
 
 ```bash
-git clone <repo-url>
+npx -y @fuul/mcp-server@latest fuul-mcp login
+npx -y @fuul/mcp-server@latest fuul-mcp whoami
+```
+
+Optional: set **staging** in the plugin’s user settings — `FUUL_API_BASE_URL` = `https://api.stg.fuul.xyz`. Default is production `https://api.fuul.xyz`.
+
+Requires **`@fuul/mcp-server@0.2.0`** or newer on npm (for the `fuul-mcp-server` binary). After the first release with this version, `npx @latest` resolves correctly.
+
+### 2. npm / npx (any MCP client)
+
+Use the published package without cloning:
+
+| Command | Role |
+| ------- | ---- |
+| `npx -y @fuul/mcp-server@latest fuul-mcp-server` | Stdio MCP server (what clients spawn) |
+| `npx -y @fuul/mcp-server@latest fuul-mcp login` | Browser OAuth; writes `~/.fuul/tokens.json` |
+| `npx -y @fuul/mcp-server@latest fuul-mcp whoami` | `GET /api/v1/auth/user` |
+
+Point your client at `fuul-mcp-server` with `cwd` optional; config can be passed via `env` (see **Configuration**).
+
+### 3. Clone (development)
+
+```bash
+git clone https://github.com/kuyen-labs/mcp_server.git
 cd mcp_server
 npm ci
+cp .env.example .env   # optional; defaults match production Agent OAuth
+npm run build
 ```
 
-Copy the env template and set `FUUL_API_BASE_URL` (and OAuth fields if not using defaults):
-
-```bash
-cp .env.example .env
-```
-
-Variables load via **dotenv** from `.env` in the **current working directory** when you start the MCP or CLI.
-
-## Authentication (CLI)
-
-From the repo root (so `.env` is found):
+Run the CLI from the repo:
 
 ```bash
 npm run cli -- login
 npm run cli -- whoami
-npm run cli -- logout
 ```
 
-Tokens are stored in `~/.fuul/tokens.json` (Windows: `%USERPROFILE%\.fuul\tokens.json`). After `login`, the MCP process uses the same file.
-
-With a build:
+Run the MCP server:
 
 ```bash
-npm run build
-node dist/cli.js login
-```
-
-## Usage examples (MCP tools)
-
-Tools are invoked by the MCP client (e.g. Cursor) with a JSON payload. Parameters match [docs/AGENTS.md](docs/AGENTS.md). Below: **illustrative** shapes; replace UUIDs and identifiers with real values from your project.
-
-**Health / session**
-
-```json
-{}
-```
-Tool: `ping` — no API call.
-
-```json
-{}
-```
-Tool: `whoami` — `GET /api/v1/auth/user` (requires login).
-
-**Metadata (cached on server)**
-
-```json
-{}
-```
-Tools: `list_chains`, `list_trigger_types`, `list_payout_schemas`.
-
-**Projects and programs**
-
-```json
-{ "page": 1, "query": "acme" }
-```
-Tool: `list_projects`
-
-```json
-{ "project_id": "550e8400-e29b-41d4-a716-446655440000" }
-```
-Tools: `get_project`, `list_incentives`
-
-**Affiliate analytics (dashboard JWT; same auth as other project routes)**
-
-Single affiliate stats (encoded `user_identifier` string, same as dashboard affiliate management):
-
-```json
-{
-  "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "user_identifier": "evm:0x0000000000000000000000000000000000000000"
-}
-```
-Tool: `get_affiliate_portal_stats` — optional: `from`, `to`, `this_month`, `conversion_external_id`, `conversion_name`.
-
-Project-wide totals:
-
-```json
-{
-  "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "dateRange": "30d"
-}
-```
-Tool: `get_project_affiliate_total_stats` — optional filters: `statuses`, `regions`, `audiences`, `tiers`, `dateFrom`/`dateTo` with `dateRange: "custom"`.
-
-Breakdown by dimension (e.g. region):
-
-```json
-{
-  "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "groupBy": "region",
-  "dateRange": "30d"
-}
-```
-Tool: `get_project_affiliates_breakdown` — `groupBy` is required (`audience` | `tier` | `region` | `status`).
-
-**Writes (always `dry_run` first, then `confirmed: true`)**
-
-```json
-{
-  "project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "Summer",
-  "trigger_ids": ["00000000-0000-4000-8000-000000000001"],
-  "payout_terms": [{ "type": "onchain_currency" }],
-  "dry_run": true
-}
-```
-Tool: `create_incentive_program` — second call with `"confirmed": true` executes `POST`.
-
-See tool descriptions in the client for payout approve/reject and `update_incentive_program` shapes.
-
-## Run MCP (stdio)
-
-```bash
-npm run build
 npm start
+# or: npm run dev
 ```
 
-Development without compiling first:
+## Configuration
+
+Environment variables are read from `process.env` and, when present, a **`.env` file in the current working directory** (`dotenv`). See [.env.example](.env.example).
+
+| Variable | Purpose |
+| -------- | ------- |
+| `FUUL_API_BASE_URL` | API origin only, no trailing slash. Production: `https://api.fuul.xyz`. Staging: `https://api.stg.fuul.xyz`. |
+| `FUUL_OAUTH_CLIENT_ID` | OAuth client id (default `fuul-agent`). |
+| `FUUL_OAUTH_REDIRECT_URI` | Loopback callback (default `http://127.0.0.1:8765/callback`). |
+| `FUUL_MCP_TOOL_TIMEOUT_MS` | Per-tool timeout in ms (default `90000`). |
+| `FUUL_MCP_DEBUG` | Set to `1` or `true` for debug logging. |
+
+**Note:** Values in `.env` are local dev convenience; they are **not** published in the npm package (`package.json` only ships `dist/`). OAuth **tokens** live in `~/.fuul/tokens.json`, not in `.env`.
+
+## MCP tool examples
+
+Clients send JSON arguments; shapes match [docs/AGENTS.md](docs/AGENTS.md). Illustrative only — use real UUIDs from your tenant.
+
+**Session**
+
+- `ping` → `{}` (no API call)
+- `whoami` → `{}` (requires login)
+
+**Metadata**
+
+- `list_chains`, `list_trigger_types`, `list_payout_schemas` → `{}`
+
+**Projects**
+
+- `list_projects` → `{ "page": 1, "query": "acme" }`
+- `get_project` → `{ "project_id": "<uuid>" }`
+- `list_incentives` / `get_incentive` / `get_trigger` → see tool descriptions in the client
+
+**Affiliate analytics**
+
+- `get_affiliate_portal_stats` → `project_id`, `user_identifier` (e.g. `evm:0x...`)
+- `get_project_affiliate_total_stats` → `project_id`, optional `dateRange`, filters
+- `get_project_affiliates_breakdown` → `project_id`, **`groupBy`** (`audience` \| `tier` \| `region` \| `status`)
+
+**Writes (two steps: `dry_run: true` then `confirmed: true`)**
+
+- `create_incentive_program`, `update_incentive_program`, `approve_payouts`, `reject_payouts`
+
+## Run and debug
 
 ```bash
-npm run dev
+npm run build && npm start
 ```
 
-### MCP Inspector
+MCP Inspector:
 
 ```bash
 npm run build
 npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
-Run **`login`** before exercising tools that call the API.
+## Client setup
 
-## Cursor and Claude Code (step by step)
+### Cursor
 
-The MCP server is a **stdio** process: the client spawns `node` with `dist/index.js`. You must **login once in a terminal** before tools that call the API will work; there is no MCP tool for OAuth.
+1. Complete **Clone** or use **npx** so `dist/index.js` or `fuul-mcp-server` exists; run **`fuul-mcp login`** once.
+2. **Settings → MCP** (or user `mcp.json`): spawn stdio with `command` + `args`, and set **`cwd`** to a folder that contains `.env` if you use one.
 
-### 1. One-time setup
-
-1. Clone the repo, `cd mcp_server`, `npm ci`.
-2. `cp .env.example .env` and set `FUUL_API_BASE_URL` (e.g. staging `https://api.stg.fuul.xyz` or production).
-3. From the repo root: `npm run cli -- login` (browser opens), then `npm run cli -- whoami` to verify.
-4. `npm run build` so `dist/index.js` exists. After every `git pull` that changes code, run **`npm run build`** again.
-
-### 2. Cursor
-
-1. Open **Cursor Settings → MCP** (wording may vary slightly by version; look for **Model Context Protocol** / **MCP**).
-2. Add a new MCP server (or edit your user **`mcp.json`** if you manage config as JSON — see [Cursor MCP docs](https://docs.cursor.com/context/mcp)).
-3. Set:
-   - **Command:** `node`
-   - **Arguments:** absolute path to this repo’s `dist/index.js` (not relative).
-   - **Working directory (cwd):** absolute path to the **root of this repo** (so `dotenv` loads `.env`).
-4. Enable the server and use **Refresh** if the client shows it disconnected.
-5. In **Chat / Agent**, ask for Fuul operations in natural language (e.g. “list my projects with `list_projects`”). If you change `FUUL_API_BASE_URL` or tokens expire, run `npm run cli -- login` again in a terminal.
-
-**Example MCP config fragment** (adjust paths for your machine):
+Example:
 
 ```json
 {
   "mcpServers": {
     "fuul": {
       "command": "node",
-      "args": ["/absolute/path/to/mcp_server/dist/index.js"],
-      "cwd": "/absolute/path/to/mcp_server"
+      "args": ["C:\\path\\to\\mcp_server\\dist\\index.js"],
+      "cwd": "C:\\path\\to\\mcp_server"
     }
   }
 }
 ```
 
-On Windows, use backslash paths or escaped backslashes in JSON, e.g. `"C:\\Users\\you\\mcp_server\\dist\\index.js"`.
+Or with npx:
 
-### 3. Claude Desktop
+```json
+{
+  "mcpServers": {
+    "fuul": {
+      "command": "npx",
+      "args": ["-y", "@fuul/mcp-server@latest", "fuul-mcp-server"],
+      "env": {
+        "FUUL_API_BASE_URL": "https://api.fuul.xyz"
+      }
+    }
+  }
+}
+```
 
-1. Complete **§1** above.
-2. Open **Settings → Developer → Edit Config** and edit `claude_desktop_config.json`.
-3. Under `mcpServers`, add an entry with the same idea: `command` = `node`, `args` = full path to `dist/index.js`, and set `cwd` to the repo root if your client supports it (some configs use only `command` + `args`; if `cwd` is unsupported, rely on `env` or run from a wrapper script).
+### Claude Desktop
 
-Refer to [Anthropic MCP quickstart](https://docs.anthropic.com/en/docs/mcp) for the exact schema your Claude app version expects.
+Use the same `mcpServers` idea in the app’s developer config. See [Anthropic MCP docs](https://docs.anthropic.com/en/docs/mcp).
 
-### 4. Claude Code (CLI)
+### Claude Code (manual MCP, without the plugin)
 
-Configure MCP in the way your **Claude Code** version documents (project or user MCP config). Point **stdio** at:
+Configure stdio per your Claude Code version: `node` + path to `dist/index.js`, or `npx` + `fuul-mcp-server` as above.
 
-- `node` + absolute path to `dist/index.js`, with **cwd** = repo root when possible.
+## Repository layout
 
-### 5. After updates or env changes
+```text
+mcp_server/
+├── .claude-plugin/           # Claude Code marketplace manifest
+│   └── marketplace.json
+├── plugins/
+│   └── fuul-mcp/             # Plugin: MCP config + skill
+│       ├── .claude-plugin/
+│       │   └── plugin.json
+│       ├── .mcp.json
+│       └── skills/fuul/SKILL.md
+├── src/                      # TypeScript source
+├── docs/                     # Maintainer and integrator docs
+├── .github/workflows/        # ci.yml, publish.yml
+└── dist/                     # `npm run build` (gitignored)
+```
 
-- Re-run **`npm run build`** after pulling code changes.
-- Re-run **`npm run cli -- login`** when switching staging/production or when the API returns **401**.
+## Requirements
 
-## CI
+- **Node.js** 18+
+- A running **fuul-server** (staging or production) with **Agent OAuth** configured
 
-On every push/PR to `main`/`master`, GitHub Actions runs three jobs in parallel (each appears as its own check on the PR: **lint**, **test**, **build**):
+## CI and releases
 
-1. `npm ci` + `npm run lint`
-2. `npm ci` + `npm run test`
-3. `npm ci` + `npm run build`
+On each push/PR to `main` / `master`, GitHub Actions runs **lint**, **test**, and **build** in parallel.
 
-Publishing `@fuul/mcp-server` to npm is triggered by **GitHub Releases** (see [.github/workflows/publish.yml](.github/workflows/publish.yml); requires `NPM_TOKEN` secret).
+Publishing to npm is triggered by publishing a **GitHub Release** (see [.github/workflows/publish.yml](.github/workflows/publish.yml)); the repository needs an `NPM_TOKEN` secret.
 
 ## Scripts
 
 | Script | Description |
 | ------ | ----------- |
 | `npm run build` | Compile TypeScript → `dist/` |
-| `npm start` | MCP server (`node dist/index.js`) |
-| `npm run cli` | CLI via `tsx` (`src/cli.ts`) |
+| `npm start` | Run MCP server (`node dist/index.js`) |
+| `npm run cli` | OAuth CLI via `tsx` (`src/cli.ts`) |
 | `npm run dev` | MCP via `tsx` (`src/index.ts`) |
 | `npm run lint` | ESLint on `src/` |
 | `npm run test` | Vitest |
