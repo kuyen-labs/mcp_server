@@ -30,8 +30,10 @@ import {
   LIST_TRIGGER_TYPES_DESCRIPTION,
   PING_DESCRIPTION,
   REJECT_PAYOUTS_DESCRIPTION,
+  UPDATE_AUDIENCE_DESCRIPTION,
   UPDATE_PAYOUT_TERM_DESCRIPTION,
   UPDATE_PROJECT_TIER_DESCRIPTION,
+  UPDATE_TRIGGER_DESCRIPTION,
   WHOAMI_DESCRIPTION,
 } from './tools/tool-descriptions.js';
 import {
@@ -45,9 +47,13 @@ import {
   listRewardsPayoutsSchema,
   payoutBatchActionInputSchema,
   projectIdParamSchema,
+  updateAudienceFieldsSchema,
+  updateAudienceInputSchema,
   updatePayoutTermInputSchema,
   updateProjectTierFieldsSchema,
   updateProjectTierInputSchema,
+  updateTriggerFieldsSchema,
+  updateTriggerInputSchema,
 } from './tools/tool-schemas.js';
 import { compactQuery } from './util/compact-query.js';
 import { ToolTimeoutError, withTimeout } from './util/with-timeout.js';
@@ -295,6 +301,96 @@ async function main(): Promise<void> {
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to update payout term');
+    }
+  });
+
+  server.tool('update_audience', UPDATE_AUDIENCE_DESCRIPTION, updateAudienceFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = updateAudienceInputSchema.parse(args);
+      assertWriteConfirmedOrDryRun(parsed);
+      const path = `/api/v1/projects/${parsed.project_id}/audiences/${parsed.audience_id}`;
+      const body: Record<string, unknown> = { name: parsed.name };
+      if (parsed.conditions !== undefined) {
+        body.conditions = parsed.conditions;
+      }
+      if (parsed.condition_match_mode !== undefined) {
+        body.condition_match_mode = parsed.condition_match_mode;
+      }
+      if (parsed.contractId !== undefined) {
+        body.contractId = parsed.contractId;
+      }
+      if (parsed.dry_run === true) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ dry_run: true, would_patch: path, body }, null, 2) }],
+        };
+      }
+      const data = await withTimeout(api.patchJson(path, body), toolTimeoutMs, 'update_audience');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to update audience');
+    }
+  });
+
+  server.tool('update_trigger', UPDATE_TRIGGER_DESCRIPTION, updateTriggerFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = updateTriggerInputSchema.parse(args);
+      assertWriteConfirmedOrDryRun(parsed);
+      const path = `/api/v1/projects/${parsed.project_id}/triggers/${parsed.trigger_id}`;
+      const body: Record<string, unknown> = {};
+      if (parsed.name !== undefined) {
+        body.name = parsed.name;
+      }
+      if (parsed.description !== undefined) {
+        body.description = parsed.description;
+      }
+      if (parsed.event_type !== undefined) {
+        body.event_type = parsed.event_type;
+      }
+      if (parsed.condition_expression !== undefined) {
+        body.condition_expression = parsed.condition_expression;
+      }
+      if (parsed.amount_expression !== undefined) {
+        body.amount_expression = parsed.amount_expression;
+      }
+      if (parsed.volume_expression !== undefined) {
+        body.volume_expression = parsed.volume_expression;
+      }
+      if (parsed.revenue_expression !== undefined) {
+        body.revenue_expression = parsed.revenue_expression;
+      }
+      if (parsed.currency_expression !== undefined) {
+        body.currency_expression = parsed.currency_expression;
+      }
+      if (parsed.volume_currency_expression !== undefined) {
+        body.volume_currency_expression = parsed.volume_currency_expression;
+      }
+      if (parsed.revenue_currency_expression !== undefined) {
+        body.revenue_currency_expression = parsed.revenue_currency_expression;
+      }
+      if (parsed.end_user_identifier_property !== undefined) {
+        body.end_user_identifier_property = parsed.end_user_identifier_property;
+      }
+      if (parsed.end_user_identifier_expression !== undefined) {
+        body.end_user_identifier_expression = parsed.end_user_identifier_expression;
+      }
+      if (parsed.payable !== undefined) {
+        body.payable = parsed.payable;
+      }
+      if (parsed.ref !== undefined) {
+        body.ref = parsed.ref;
+      }
+      if (parsed.contract_ids !== undefined) {
+        body.contract_ids = parsed.contract_ids;
+      }
+      if (parsed.dry_run === true) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ dry_run: true, would_patch: path, body }, null, 2) }],
+        };
+      }
+      const data = await withTimeout(api.patchJson(path, body), toolTimeoutMs, 'update_trigger');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to update trigger');
     }
   });
 
