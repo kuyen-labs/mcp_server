@@ -25,4 +25,4 @@ Automated OAuth browser login is **not** run in CI for this package (no headless
 
 ## npm artifact
 
-Package: `@fuul/mcp-server`. Publish via GitHub Actions on release tag when `NPM_TOKEN` is configured (see `.github/workflows/publish.yml`).
+Package: **`@fuul/mcp-server`** on npm. Versioning and publishing (maintainers): [repository README](../../README.md#publishing).
