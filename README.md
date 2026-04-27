@@ -28,9 +28,11 @@ In **Claude Code**:
 One-time OAuth in a terminal (same tokens the MCP uses):
 
 ```bash
-npx -y @fuul/mcp-server@latest fuul-mcp login
-npx -y @fuul/mcp-server@latest fuul-mcp whoami
+npx -y --package=@fuul/mcp-server@latest fuul-mcp login
+npx -y --package=@fuul/mcp-server@latest fuul-mcp whoami
 ```
+
+Use `--package=` because this package exposes **two** `bin` entries (`fuul-mcp`, `fuul-mcp-server`); without it, `npx` may report *could not determine executable to run* (common on Windows / npm 10+).
 
 Optional: set **staging** in the plugin’s user settings — `FUUL_API_BASE_URL` = `https://api.stg.fuul.xyz`. Default is production `https://api.fuul.xyz`.
 
@@ -42,9 +44,9 @@ Use the published package without cloning:
 
 | Command | Role |
 | ------- | ---- |
-| `npx -y @fuul/mcp-server@latest fuul-mcp-server` | Stdio MCP server (what clients spawn) |
-| `npx -y @fuul/mcp-server@latest fuul-mcp login` | Browser OAuth; writes `~/.fuul/tokens.json` |
-| `npx -y @fuul/mcp-server@latest fuul-mcp whoami` | `GET /api/v1/auth/user` |
+| `npx -y --package=@fuul/mcp-server@latest fuul-mcp-server` | Stdio MCP server (what clients spawn) |
+| `npx -y --package=@fuul/mcp-server@latest fuul-mcp login` | Browser OAuth; writes `~/.fuul/tokens.json` |
+| `npx -y --package=@fuul/mcp-server@latest fuul-mcp whoami` | `GET /api/v1/auth/user` |
 
 Point your client at `fuul-mcp-server` with `cwd` optional; config can be passed via `env` (see **Configuration**).
 
@@ -156,7 +158,7 @@ Or with npx:
   "mcpServers": {
     "fuul": {
       "command": "npx",
-      "args": ["-y", "@fuul/mcp-server@latest", "fuul-mcp-server"],
+      "args": ["-y", "--package=@fuul/mcp-server@latest", "fuul-mcp-server"],
       "env": {
         "FUUL_API_BASE_URL": "https://api.fuul.xyz"
       }

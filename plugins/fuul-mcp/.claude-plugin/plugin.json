@@ -11,6 +11,8 @@
   "mcpServers": "./.mcp.json",
   "userConfig": {
     "FUUL_API_BASE_URL": {
+      "type": "string",
+      "title": "Fuul API base URL",
       "description": "Fuul API origin (no trailing slash). Production: https://api.fuul.xyz. Staging: https://api.stg.fuul.xyz",
       "default": "https://api.fuul.xyz",
       "required": false
