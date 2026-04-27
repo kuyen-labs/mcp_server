@@ -187,7 +187,7 @@ mcp_server/
 │       └── skills/fuul/SKILL.md
 ├── src/                      # TypeScript source
 ├── docs/                     # Maintainer and integrator docs
-├── .github/workflows/        # ci.yml, release.yml (semantic-release)
+├── .github/workflows/        # ci.yml, release.yml (semantic-release; name must match npm Trusted Publishing)
 ├── release.config.cjs        # semantic-release plugins and branches
 └── dist/                     # `npm run build` (gitignored)
 ```
@@ -205,11 +205,10 @@ On each push/PR to `main` / `master`, GitHub Actions runs **lint**, **test**, an
 
 **npm** releases are performed by **semantic-release** in GitHub Actions (same approach as [fuul-sdk](https://github.com/kuyen-labs/fuul-sdk)). You do not need to create a GitHub Release manually or run `npm publish` locally for the default flow.
 
-1. **npm authentication (pick one, same idea as [fuul-sdk](https://github.com/kuyen-labs/fuul-sdk))**  
-   - **Recommended — [Trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC):** On npmjs.com, open **`@fuul/mcp-server` → Package access → Publishing access** and add a **trusted publisher** for **GitHub Actions** pointing at this repository (`kuyen-labs/mcp_server`) and the release workflow. The workflow already sets `permissions: id-token: write` and does **not** pass `NPM_TOKEN`. If OIDC is not configured, logs often show `OIDC token exchange … 404` or similar, then token verification fails.  
-   - **Fallback — classic token:** Add a repository secret **`NPM_TOKEN`** (automation or granular publish token) and, in [.github/workflows/release.yml](.github/workflows/release.yml), set both `NPM_TOKEN` and `NODE_AUTH_TOKEN` to `${{ secrets.NPM_TOKEN }}` on the Release step (because `setup-node` + `registry-url` writes `.npmrc` using `NODE_AUTH_TOKEN`).
-2. **Branches**: on **push** to `main`, `beta`, or `alpha`, [.github/workflows/release.yml](.github/workflows/release.yml) installs dependencies, runs **build** and **test**, then `npx semantic-release` (only for `push`, not for pull requests).
-3. **Config**: plugins and branches live in [release.config.cjs](release.config.cjs): `@semantic-release/commit-analyzer` and `@semantic-release/release-notes-generator` (semver from commits), `@semantic-release/npm` (bump `package.json` and publish), `@semantic-release/exec` (`prepareCmd`: `npm run build`), `@semantic-release/git` (commit `package.json` / `package-lock.json` with `chore(release): … [skip ci]`).
+1. **npm — [Trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC):** [.github/workflows/release.yml](.github/workflows/release.yml) uses the same **steps and permissions** as [fuul-sdk](https://github.com/kuyen-labs/fuul-sdk)’s release job (`id-token: write`, no `NPM_TOKEN` in the workflow). The **filename** is **`release.yml`** here so it matches what you enter in npm’s trusted-publisher form (fuul-sdk uses **`versioning.yml`** instead — that name is only for that repo). On npmjs.com, **`@fuul/mcp-server`** must list workflow **`.github/workflows/release.yml`** for **`kuyen-labs` / `mcp_server`**. If npm still shows **`OIDC … 404`**, the path/org/repo in npm does not match this file.  
+   **About `NPM_TOKEN` in caps:** npm docs use that name for **classic token** auth. With **Trusted Publishing** you do **not** put a token value into npm for OIDC; GitHub provides the identity. You also do **not** need a GitHub secret named `NPM_TOKEN` for this flow. (If the npm UI showed `NPM_TOKEN`, it is usually help text for the non-OIDC case.)
+2. **Branches**: on **push** to `main`, `beta`, or `alpha`, that workflow runs `npm ci`, **build**, **`npm run test:ci`**, then `npx semantic-release` on push only.
+3. **Config**: [release.config.cjs](release.config.cjs) matches fuul-sdk’s plugin list and order; `@semantic-release/exec` uses the same **`verifyReleaseCmd`** writing `src/release.json` (placeholder [src/release.json](src/release.json)); `@semantic-release/git` commits **`package.json`** only.
 4. **Commits**: use [Conventional Commits](https://www.conventionalcommits.org/) on releasable branches (e.g. `feat:`, `fix:`, `BREAKING CHANGE:`) so the next version is computed; if nothing warrants a release, the job exits without publishing (expected).
 
 Local dry run of the same CLI: `npm run semantic-release` (needs a clean git state, tags, and env vars; in practice CI after merge is enough).
@@ -224,6 +223,7 @@ Local dry run of the same CLI: `npm run semantic-release` (needs a clean git sta
 | `npm run dev` | MCP via `tsx` (`src/index.ts`) |
 | `npm run lint` | ESLint on `src/` |
 | `npm run test` | Vitest |
+| `npm run test:ci` | Vitest (same as `test`; used by `release.yml` like fuul-sdk’s `test:ci` in `versioning.yml`) |
 | `npm run semantic-release` | Run semantic-release locally (CI runs `npx semantic-release` on eligible pushes) |
 
 ## License
