@@ -187,7 +187,8 @@ mcp_server/
 │       └── skills/fuul/SKILL.md
 ├── src/                      # TypeScript source
 ├── docs/                     # Maintainer and integrator docs
-├── .github/workflows/        # ci.yml, publish.yml
+├── .github/workflows/        # ci.yml, release.yml (semantic-release)
+├── release.config.cjs        # semantic-release plugins and branches
 └── dist/                     # `npm run build` (gitignored)
 ```
 
@@ -198,9 +199,18 @@ mcp_server/
 
 ## CI and releases
 
-On each push/PR to `main` / `master`, GitHub Actions runs **lint**, **test**, and **build** in parallel.
+On each push/PR to `main` / `master`, GitHub Actions runs **lint**, **test**, and **build** in parallel (see [.github/workflows/ci.yml](.github/workflows/ci.yml)). Pushes to `beta` / `alpha` also run CI on those branches.
 
-Publishing to npm is triggered by publishing a **GitHub Release** (see [.github/workflows/publish.yml](.github/workflows/publish.yml)); the repository needs an `NPM_TOKEN` secret.
+## Publishing
+
+**npm** releases are performed by **semantic-release** in GitHub Actions (same approach as [fuul-sdk](https://github.com/kuyen-labs/fuul-sdk)). You do not need to create a GitHub Release manually or run `npm publish` locally for the default flow.
+
+1. **Secret**: configure **`NPM_TOKEN`** on the GitHub repo (npm automation token with publish permission for the `@fuul` scope).
+2. **Branches**: on **push** to `main`, `beta`, or `alpha`, [.github/workflows/release.yml](.github/workflows/release.yml) installs dependencies, runs **build** and **test**, then `npx semantic-release` (only for `push`, not for pull requests).
+3. **Config**: plugins and branches live in [release.config.cjs](release.config.cjs): `@semantic-release/commit-analyzer` and `@semantic-release/release-notes-generator` (semver from commits), `@semantic-release/npm` (bump `package.json` and publish), `@semantic-release/exec` (`prepareCmd`: `npm run build`), `@semantic-release/git` (commit `package.json` / `package-lock.json` with `chore(release): … [skip ci]`).
+4. **Commits**: use [Conventional Commits](https://www.conventionalcommits.org/) on releasable branches (e.g. `feat:`, `fix:`, `BREAKING CHANGE:`) so the next version is computed; if nothing warrants a release, the job exits without publishing (expected).
+
+Local dry run of the same CLI: `npm run semantic-release` (needs a clean git state, tags, and env vars; in practice CI after merge is enough).
 
 ## Scripts
 
@@ -212,6 +222,7 @@ Publishing to npm is triggered by publishing a **GitHub Release** (see [.github/
 | `npm run dev` | MCP via `tsx` (`src/index.ts`) |
 | `npm run lint` | ESLint on `src/` |
 | `npm run test` | Vitest |
+| `npm run semantic-release` | Run semantic-release locally (CI runs `npx semantic-release` on eligible pushes) |
 
 ## License
 
