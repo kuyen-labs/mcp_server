@@ -37,11 +37,9 @@ jobs:
         run: npm run build
 
       - name: Test
-        run: npm run test
+        run: npm run test:ci
 
-      # Same as fuul-sdk: publish via npm Trusted Publishing (OIDC). Requires the package on npmjs.com to list this
-      # GitHub repo as a trusted publisher — no NPM_TOKEN in the workflow.
-      # If OIDC is not set up yet, add repository secret NPM_TOKEN and set NPM_TOKEN + NODE_AUTH_TOKEN here temporarily.
+      # Filename must match npm Trusted Publishing: e.g. .github/workflows/release.yml (not fuul-sdk’s versioning.yml).
       - name: Release
         if: github.event_name == 'push'
         env:
