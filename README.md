@@ -34,7 +34,15 @@ npx -y @fuul/mcp-server@latest fuul-mcp whoami
 
 Optional: set **staging** in the plugin’s user settings — `FUUL_API_BASE_URL` = `https://api.stg.fuul.xyz`. Default is production `https://api.fuul.xyz`.
 
-Requires **`@fuul/mcp-server@0.2.0`** or newer on npm (for the `fuul-mcp-server` binary). After the first release with this version, `npx @latest` resolves correctly.
+**MCP config and `npx`:** The plugin’s `.mcp.json` must spawn the server with `--package=@fuul/mcp-server@latest` so `npx` knows which package to install and run; passing `@fuul/mcp-server@latest` as a bare positional is unreliable when the client splits `args` (Claude Code ends up treating the binary name incorrectly). Correct `args` shape:
+
+```json
+"args": ["-y", "--package=@fuul/mcp-server@latest", "fuul-mcp-server"]
+```
+
+If you installed an older cached plugin and MCP fails to start, edit the cached `.mcp.json` under `~/.claude/plugins/cache/.../fuul-mcp/.../.mcp.json` to match the line above, or reinstall after a plugin release that ships this fix.
+
+Requires **`@fuul/mcp-server@0.2.0`** or newer on npm (for the `fuul-mcp-server` binary).
 
 ### 2. npm / npx (any MCP client)
 
@@ -42,7 +50,8 @@ Use the published package without cloning:
 
 | Command | Role |
 | ------- | ---- |
-| `npx -y @fuul/mcp-server@latest fuul-mcp-server` | Stdio MCP server (what clients spawn) |
+| `npx -y @fuul/mcp-server@latest fuul-mcp-server` | Stdio MCP server (shell one-liner) |
+| `npx -y --package=@fuul/mcp-server@latest fuul-mcp-server` | Same; use this split as `args` in MCP JSON (Cursor, Claude, etc.) |
 | `npx -y @fuul/mcp-server@latest fuul-mcp login` | Browser OAuth; writes `~/.fuul/tokens.json` |
 | `npx -y @fuul/mcp-server@latest fuul-mcp whoami` | `GET /api/v1/auth/user` |
 
@@ -149,14 +158,14 @@ Example:
 }
 ```
 
-Or with npx:
+Or with npx (use `--package=` so MCP clients that pass argv arrays resolve the package and binary correctly):
 
 ```json
 {
   "mcpServers": {
     "fuul": {
       "command": "npx",
-      "args": ["-y", "@fuul/mcp-server@latest", "fuul-mcp-server"],
+      "args": ["-y", "--package=@fuul/mcp-server@latest", "fuul-mcp-server"],
       "env": {
         "FUUL_API_BASE_URL": "https://api.fuul.xyz"
       }
@@ -171,7 +180,7 @@ Use the same `mcpServers` idea in the app’s developer config. See [Anthropic M
 
 ### Claude Code (manual MCP, without the plugin)
 
-Configure stdio per your Claude Code version: `node` + path to `dist/index.js`, or `npx` + `fuul-mcp-server` as above.
+Configure stdio per your Claude Code version: `node` + path to `dist/index.js`, or `npx` with `args` including `--package=@fuul/mcp-server@latest` and `fuul-mcp-server` (same as the Cursor example above).
 
 ## Repository layout
 
