@@ -10,6 +10,7 @@ export const WHOAMI_DESCRIPTION =
 export const LIST_CHAINS_DESCRIPTION =
   'Lists supported blockchain chains from GET /public-api/v1/metadata/chains. Uses server metadata (not a hardcoded catalog); responses are cached with ETag/Cache-Control. Each chain includes snake_case fields such as chain_id, is_testnet, optional svm_network and webapp_capabilities, and can_be_used_for_payouts (boolean: true where Fuul reward/payout infra is deployed). Params: none (pass {}). Pagination: not exposed by this tool until the API adds cursor/limit.';
 
+  
 export const LIST_TRIGGER_TYPES_DESCRIPTION =
   'Lists trigger type metadata from GET /public-api/v1/metadata/trigger-types (cached). Use ids from this response when building programs/triggers. Params: {}.';
 
