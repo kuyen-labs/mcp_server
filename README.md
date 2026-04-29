@@ -1,164 +1,67 @@
 # @fuul/mcp-server
 
-Fuul [Model Context Protocol](https://modelcontextprotocol.io/) server: OAuth CLI (`fuul-mcp`), stdio MCP entry (`fuul-mcp-server`), metadata tools, project and affiliate analytics, incentive and payout operations (reads plus `dry_run` / `confirmed` writes), and rate-limit-aware errors.
+Fuul [Model Context Protocol](https://modelcontextprotocol.io/) server for managing affiliate programs, analytics, incentives, and payouts through MCP-compatible clients (Claude Code, Cursor, Claude Desktop).
 
-## Documentation
+[![npm version](https://img.shields.io/npm/v/@fuul/mcp-server.svg)](https://www.npmjs.com/package/@fuul/mcp-server)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
 
-| Resource | Purpose |
-| -------- | ------- |
-| [docs/README.md](docs/README.md) | Index of all docs in this repo |
-| [docs/AGENTS.md](docs/AGENTS.md) | Tool ↔ HTTP map (audit, support, PR review) |
-| [docs/mcp-phase2/CONSUMER.md](docs/mcp-phase2/CONSUMER.md) | Staging/production URLs, API expectations |
-| [docs/mcp-phase2/tool-prompts.md](docs/mcp-phase2/tool-prompts.md) | Sample prompts for tooling and evals |
-| [CHANGELOG.md](CHANGELOG.md) | Release notes |
+---
 
-## Install (pick one path)
+## Table of Contents
 
-### 1. Claude Code plugin (marketplace)
+- [Quick Start](#quick-start)
+- [Installation Methods](#installation-methods)
+  - [Claude Code Plugin (Recommended)](#1-claude-code-plugin-recommended)
+  - [Cursor IDE](#2-cursor-ide)
+  - [npx (Any MCP Client)](#3-npx-any-mcp-client)
+  - [Local Development (Clone)](#4-local-development-clone)
+- [Authentication](#authentication)
+- [Configuration](#configuration)
+- [MCP Tool Reference](#mcp-tool-reference)
+- [Troubleshooting](#troubleshooting)
+- [Repository Layout](#repository-layout)
+- [Scripts Reference](#scripts-reference)
+- [Documentation](#documentation)
+- [CI and Releases](#ci-and-releases)
+- [License](#license)
 
-Adds the MCP server plus a **skill** that documents how to use Fuul tools.
+---
 
-In **Claude Code**:
+## Quick Start
+
+```bash
+# 1. Install (choose one method below)
+# 2. Authenticate once:
+npx -y --package=@fuul/mcp-server@latest fuul-mcp login
+
+# 3. Verify:
+npx -y --package=@fuul/mcp-server@latest fuul-mcp whoami
+```
+
+---
+
+## Installation Methods
+
+### 1. Claude Code Plugin (Recommended)
+
+The easiest way to use Fuul MCP with Claude Code. Adds the MCP server plus a **skill** that documents how to use Fuul tools.
+
+#### Step 1: Install the plugin
 
 ```text
 /plugin marketplace add kuyen-labs/mcp_server
 /plugin install fuul-mcp@fuul-mcp
 ```
 
-One-time OAuth in a terminal (same tokens the MCP uses):
+#### Step 2: Verify the `.mcp.json` format
 
-```bash
-npx -y @fuul/mcp-server@latest fuul-mcp login
-npx -y @fuul/mcp-server@latest fuul-mcp whoami
+Check the plugin's `.mcp.json` at:
+
+```
+~/.claude/plugins/cache/fuul-mcp/fuul-mcp/<version>/.mcp.json
 ```
 
-Optional: set **staging** in the plugin’s user settings — `FUUL_API_BASE_URL` = `https://api.stg.fuul.xyz`. Default is production `https://api.fuul.xyz`.
-
-**MCP config and `npx`:** The plugin’s `.mcp.json` must spawn the server with `--package=@fuul/mcp-server@latest` so `npx` knows which package to install and run; passing `@fuul/mcp-server@latest` as a bare positional is unreliable when the client splits `args` (Claude Code ends up treating the binary name incorrectly). Correct `args` shape:
-
-```json
-"args": ["-y", "--package=@fuul/mcp-server@latest", "fuul-mcp-server"]
-```
-
-If you installed an older cached plugin and MCP fails to start, edit the cached `.mcp.json` under `~/.claude/plugins/cache/.../fuul-mcp/.../.mcp.json` to match the line above, or reinstall after a plugin release that ships this fix.
-
-Requires **`@fuul/mcp-server@0.2.0`** or newer on npm (for the `fuul-mcp-server` binary).
-
-### 2. npm / npx (any MCP client)
-
-Use the published package without cloning:
-
-| Command | Role |
-| ------- | ---- |
-| `npx -y @fuul/mcp-server@latest fuul-mcp-server` | Stdio MCP server (shell one-liner) |
-| `npx -y --package=@fuul/mcp-server@latest fuul-mcp-server` | Same; use this split as `args` in MCP JSON (Cursor, Claude, etc.) |
-| `npx -y @fuul/mcp-server@latest fuul-mcp login` | Browser OAuth; writes `~/.fuul/tokens.json` |
-| `npx -y @fuul/mcp-server@latest fuul-mcp whoami` | `GET /api/v1/auth/user` |
-
-Point your client at `fuul-mcp-server` with `cwd` optional; config can be passed via `env` (see **Configuration**).
-
-### 3. Clone (development)
-
-```bash
-git clone https://github.com/kuyen-labs/mcp_server.git
-cd mcp_server
-npm ci
-cp .env.example .env   # optional; defaults match production Agent OAuth
-npm run build
-```
-
-Run the CLI from the repo:
-
-```bash
-npm run cli -- login
-npm run cli -- whoami
-```
-
-Run the MCP server:
-
-```bash
-npm start
-# or: npm run dev
-```
-
-## Configuration
-
-Environment variables are read from `process.env` and, when present, a **`.env` file in the current working directory** (`dotenv`). See [.env.example](.env.example).
-
-| Variable | Purpose |
-| -------- | ------- |
-| `FUUL_API_BASE_URL` | API origin only, no trailing slash. Production: `https://api.fuul.xyz`. Staging: `https://api.stg.fuul.xyz`. |
-| `FUUL_OAUTH_CLIENT_ID` | OAuth client id (default `fuul-agent`). |
-| `FUUL_OAUTH_REDIRECT_URI` | Loopback callback (default `http://127.0.0.1:8765/callback`). |
-| `FUUL_MCP_TOOL_TIMEOUT_MS` | Per-tool timeout in ms (default `90000`). |
-| `FUUL_MCP_DEBUG` | Set to `1` or `true` for debug logging. |
-
-**Note:** Values in `.env` are local dev convenience; they are **not** published in the npm package (`package.json` only ships `dist/`). OAuth **tokens** live in `~/.fuul/tokens.json`, not in `.env`.
-
-## MCP tool examples
-
-Clients send JSON arguments; shapes match [docs/AGENTS.md](docs/AGENTS.md). Illustrative only — use real UUIDs from your tenant.
-
-**Session**
-
-- `ping` → `{}` (no API call)
-- `whoami` → `{}` (requires login)
-
-**Metadata**
-
-- `list_chains`, `list_trigger_types`, `list_payout_schemas` → `{}`
-
-**Projects**
-
-- `list_projects` → `{ "page": 1, "query": "acme" }`
-- `get_project` → `{ "project_id": "<uuid>" }`
-- `list_incentives` / `get_incentive` / `get_trigger` → see tool descriptions in the client
-
-**Affiliate analytics**
-
-- `get_affiliate_portal_stats` → `project_id`, `user_identifier` (e.g. `evm:0x...`)
-- `get_project_affiliate_total_stats` → `project_id`, optional `dateRange`, filters
-- `get_project_affiliates_breakdown` → `project_id`, **`groupBy`** (`audience` \| `tier` \| `region` \| `status`)
-
-**Writes (two steps: `dry_run: true` then `confirmed: true`)**
-
-- `create_incentive_program`, `update_incentive_program`, `approve_payouts`, `reject_payouts`
-
-## Run and debug
-
-```bash
-npm run build && npm start
-```
-
-MCP Inspector:
-
-```bash
-npm run build
-npx @modelcontextprotocol/inspector node dist/index.js
-```
-
-## Client setup
-
-### Cursor
-
-1. Complete **Clone** or use **npx** so `dist/index.js` or `fuul-mcp-server` exists; run **`fuul-mcp login`** once.
-2. **Settings → MCP** (or user `mcp.json`): spawn stdio with `command` + `args`, and set **`cwd`** to a folder that contains `.env` if you use one.
-
-Example:
-
-```json
-{
-  "mcpServers": {
-    "fuul": {
-      "command": "node",
-      "args": ["C:\\path\\to\\mcp_server\\dist\\index.js"],
-      "cwd": "C:\\path\\to\\mcp_server"
-    }
-  }
-}
-```
-
-Or with npx (use `--package=` so MCP clients that pass argv arrays resolve the package and binary correctly):
+It must use the `--package=` format in `args`:
 
 ```json
 {
@@ -167,74 +70,559 @@ Or with npx (use `--package=` so MCP clients that pass argv arrays resolve the p
       "command": "npx",
       "args": ["-y", "--package=@fuul/mcp-server@latest", "fuul-mcp-server"],
       "env": {
-        "FUUL_API_BASE_URL": "https://api.fuul.xyz"
+        "FUUL_API_BASE_URL": "${user_config.FUUL_API_BASE_URL}"
       }
     }
   }
 }
 ```
 
-### Claude Desktop
+If `args` shows `["-y", "@fuul/mcp-server@latest", "fuul-mcp-server"]` (without `--package=`), update it to match the format above.
 
-Use the same `mcpServers` idea in the app’s developer config. See [Anthropic MCP docs](https://docs.anthropic.com/en/docs/mcp).
-
-### Claude Code (manual MCP, without the plugin)
-
-Configure stdio per your Claude Code version: `node` + path to `dist/index.js`, or `npx` with `args` including `--package=@fuul/mcp-server@latest` and `fuul-mcp-server` (same as the Cursor example above).
-
-## Repository layout
+#### Step 3: Reload the plugin
 
 ```text
+/reload-plugins
+```
+
+#### Step 4: Authenticate (one-time)
+
+Open a terminal and run:
+
+```bash
+npx -y --package=@fuul/mcp-server@latest fuul-mcp login
+```
+
+This opens your browser for OAuth. Tokens are saved to `~/.fuul/tokens.json`.
+
+#### Step 5: Verify
+
+```bash
+npx -y --package=@fuul/mcp-server@latest fuul-mcp whoami
+```
+
+#### Optional: Use staging environment
+
+Set `FUUL_API_BASE_URL` in the plugin's user settings:
+
+| Environment | URL |
+|-------------|-----|
+| Production (default) | `https://api.fuul.xyz` |
+| Staging | `https://api.stg.fuul.xyz` |
+
+---
+
+### 2. Cursor IDE
+
+#### Option A: Using npx (no clone required)
+
+1. **Authenticate first:**
+
+   ```bash
+   npx -y --package=@fuul/mcp-server@latest fuul-mcp login
+   npx -y --package=@fuul/mcp-server@latest fuul-mcp whoami
+   ```
+
+2. **Configure MCP in Cursor:**
+
+   Go to **Settings → MCP** or edit your `mcp.json`:
+
+   ```json
+   {
+     "mcpServers": {
+       "fuul": {
+         "command": "npx",
+         "args": ["-y", "--package=@fuul/mcp-server@latest", "fuul-mcp-server"],
+         "env": {
+           "FUUL_API_BASE_URL": "https://api.fuul.xyz"
+         }
+       }
+     }
+   }
+   ```
+
+#### Option B: Using local clone
+
+1. **Clone and build:**
+
+   ```bash
+   git clone https://github.com/kuyen-labs/mcp_server.git
+   cd mcp_server
+   npm ci
+   npm run build
+   ```
+
+2. **Authenticate:**
+
+   ```bash
+   npm run cli -- login
+   npm run cli -- whoami
+   ```
+
+3. **Configure MCP in Cursor:**
+
+   ```json
+   {
+     "mcpServers": {
+       "fuul": {
+         "command": "node",
+         "args": ["C:\\path\\to\\mcp_server\\dist\\index.js"],
+         "cwd": "C:\\path\\to\\mcp_server"
+       }
+     }
+   }
+   ```
+
+   On macOS/Linux:
+
+   ```json
+   {
+     "mcpServers": {
+       "fuul": {
+         "command": "node",
+         "args": ["/path/to/mcp_server/dist/index.js"],
+         "cwd": "/path/to/mcp_server"
+       }
+     }
+   }
+   ```
+
+---
+
+### 3. npx (Any MCP Client)
+
+Use the published npm package without cloning:
+
+| Command | Purpose |
+|---------|---------|
+| `npx -y --package=@fuul/mcp-server@latest fuul-mcp login` | Browser OAuth; writes `~/.fuul/tokens.json` |
+| `npx -y --package=@fuul/mcp-server@latest fuul-mcp whoami` | Verify session (`GET /api/v1/auth/user`) |
+| `npx -y --package=@fuul/mcp-server@latest fuul-mcp logout` | Clear tokens |
+| `npx -y --package=@fuul/mcp-server@latest fuul-mcp-server` | Start stdio MCP server |
+
+For MCP client configs (JSON), use the `--package=` format:
+
+```json
+{
+  "command": "npx",
+  "args": ["-y", "--package=@fuul/mcp-server@latest", "fuul-mcp-server"]
+}
+```
+
+---
+
+### 4. Local Development (Clone)
+
+```bash
+git clone https://github.com/kuyen-labs/mcp_server.git
+cd mcp_server
+npm ci
+cp .env.example .env   # Optional: edit for staging/custom settings
+npm run build
+```
+
+#### Run CLI commands:
+
+```bash
+npm run cli -- login
+npm run cli -- whoami
+npm run cli -- logout
+```
+
+#### Run MCP server:
+
+```bash
+npm start              # Production (uses dist/)
+npm run dev            # Development (uses tsx, watches src/)
+```
+
+#### Debug with MCP Inspector:
+
+```bash
+npm run build
+npx @modelcontextprotocol/inspector node dist/index.js
+```
+
+---
+
+## Authentication
+
+Authentication uses OAuth with the Fuul dashboard. Tokens are stored locally and shared by the CLI and MCP server.
+
+### Token location
+
+| OS | Path |
+|----|------|
+| macOS/Linux | `~/.fuul/tokens.json` |
+| Windows | `%USERPROFILE%\.fuul\tokens.json` |
+
+### Login flow
+
+```bash
+npx -y --package=@fuul/mcp-server@latest fuul-mcp login
+```
+
+This opens your default browser to the Fuul OAuth page. After authorizing, tokens are saved automatically.
+
+### Verify session
+
+```bash
+npx -y --package=@fuul/mcp-server@latest fuul-mcp whoami
+```
+
+### Clear tokens
+
+```bash
+npx -y --package=@fuul/mcp-server@latest fuul-mcp logout
+```
+
+---
+
+## Configuration
+
+Environment variables are read from `process.env` and, when present, a `.env` file in the current working directory.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FUUL_API_BASE_URL` | `https://api.fuul.xyz` | API origin (no trailing slash). Use `https://api.stg.fuul.xyz` for staging. |
+| `FUUL_OAUTH_CLIENT_ID` | `fuul-agent` | OAuth client ID |
+| `FUUL_OAUTH_REDIRECT_URI` | `http://127.0.0.1:8765/callback` | OAuth callback URL |
+| `FUUL_MCP_TOOL_TIMEOUT_MS` | `90000` | Per-tool timeout in milliseconds |
+| `FUUL_MCP_DEBUG` | `false` | Set to `1` or `true` for debug logging |
+
+### Example `.env` file
+
+```bash
+FUUL_API_BASE_URL=https://api.stg.fuul.xyz
+FUUL_MCP_DEBUG=1
+```
+
+> **Note:** The `.env` file is for local development only and is not included in the npm package. Tokens are stored in `~/.fuul/tokens.json`, not in `.env`.
+
+---
+
+## MCP Tool Reference
+
+### Tool Categories
+
+| Category | Tools |
+|----------|-------|
+| **Health** | `ping`, `whoami` |
+| **Metadata** (cached) | `list_chains`, `list_trigger_types`, `list_payout_schemas` |
+| **Projects** | `list_projects`, `get_project` |
+| **Incentives** | `list_incentives`, `get_incentive`, `get_trigger` |
+| **Affiliate Analytics** | `get_affiliate_portal_stats`, `get_project_affiliate_total_stats`, `get_project_affiliates_breakdown` |
+| **Payouts (Read)** | `list_payouts_pending_approval`, `list_rewards_payouts` |
+| **Payouts (Write)** | `approve_payouts`, `reject_payouts` |
+| **Tiers** | `update_project_tier` |
+| **Audiences** | `update_audience` |
+| **Triggers** | `update_trigger` |
+| **Payout Terms** | `update_payout_term` |
+
+### Tool Examples
+
+All tools receive JSON arguments. Use real UUIDs from your tenant.
+
+#### Health checks
+
+```json
+// ping (no auth required)
+{}
+
+// whoami (requires login)
+{}
+```
+
+#### Metadata queries
+
+```json
+// list_chains, list_trigger_types, list_payout_schemas
+{}
+```
+
+#### Project operations
+
+```json
+// list_projects
+{ "page": 1, "query": "acme" }
+
+// get_project
+{ "project_id": "550e8400-e29b-41d4-a716-446655440000" }
+```
+
+#### Incentives
+
+```json
+// list_incentives
+{ "project_id": "<uuid>" }
+
+// get_incentive
+{ "project_id": "<uuid>", "conversion_id": "<uuid>" }
+
+// get_trigger
+{ "project_id": "<uuid>", "trigger_id": "<uuid>" }
+```
+
+#### Affiliate analytics
+
+```json
+// get_affiliate_portal_stats (single affiliate)
+{
+  "project_id": "<uuid>",
+  "user_identifier": "evm:0x1234..."
+}
+
+// get_project_affiliate_total_stats (project totals)
+{
+  "project_id": "<uuid>",
+  "dateRange": "30d"
+}
+
+// get_project_affiliates_breakdown (grouped breakdown)
+{
+  "project_id": "<uuid>",
+  "groupBy": "region",
+  "dateRange": "30d"
+}
+```
+
+`groupBy` options: `audience`, `tier`, `region`, `status`
+
+`dateRange` options: `7d`, `30d`, `90d`, `MTD`, `QTD`, `custom`, `all`
+
+#### Payout operations
+
+```json
+// list_payouts_pending_approval
+{ "project_id": "<uuid>", "page": 1, "page_size": 50 }
+
+// list_rewards_payouts
+{ "project_id": "<uuid>", "page": 1 }
+```
+
+### Write Operations (Two-Step Flow)
+
+All mutation tools require a **two-step process**:
+
+1. **Preview:** Call with `dry_run: true` — validates and returns a preview without making changes
+2. **Confirm:** Call with `confirmed: true` — executes the mutation
+
+#### Example: Approve payouts
+
+```json
+// Step 1: Preview
+{
+  "project_id": "<uuid>",
+  "payout_ids": ["<uuid1>", "<uuid2>"],
+  "dry_run": true
+}
+
+// Step 2: Confirm (after user approval)
+{
+  "project_id": "<uuid>",
+  "payout_ids": ["<uuid1>", "<uuid2>"],
+  "confirmed": true
+}
+```
+
+Write tools: `approve_payouts`, `reject_payouts`, `update_project_tier`, `update_audience`, `update_trigger`, `update_payout_term`
+
+---
+
+## Troubleshooting
+
+### MCP server fails to start
+
+**Symptom:** Error like `Cannot find package '@fuul/mcp-server'` or binary not found.
+
+**Solution:** Ensure you use the `--package=` format in args:
+
+```json
+{
+  "args": ["-y", "--package=@fuul/mcp-server@latest", "fuul-mcp-server"]
+}
+```
+
+**Wrong:**
+```json
+{
+  "args": ["-y", "@fuul/mcp-server@latest", "fuul-mcp-server"]
+}
+```
+
+### 401 Unauthorized errors
+
+**Symptom:** API tools return 401 or `whoami` fails.
+
+**Solution:**
+
+1. Run login again:
+   ```bash
+   npx -y --package=@fuul/mcp-server@latest fuul-mcp login
+   ```
+
+2. Verify tokens exist:
+   - macOS/Linux: `~/.fuul/tokens.json`
+   - Windows: `%USERPROFILE%\.fuul\tokens.json`
+
+3. Verify session:
+   ```bash
+   npx -y --package=@fuul/mcp-server@latest fuul-mcp whoami
+   ```
+
+### Rate limiting (HTTP 429)
+
+**Symptom:** Tools return 429 errors.
+
+**Solution:** Wait for the `Retry-After` header duration, then retry. The MCP server handles this automatically in most cases.
+
+### Environment not loading
+
+**Symptom:** Staging URL not being used despite `.env` file.
+
+**Solution:**
+
+1. Ensure `cwd` in your MCP config points to the directory containing `.env`
+2. Or pass environment directly in the config:
+   ```json
+   {
+     "env": {
+       "FUUL_API_BASE_URL": "https://api.stg.fuul.xyz"
+     }
+   }
+   ```
+
+### Windows path issues
+
+**Symptom:** Paths not resolving correctly on Windows.
+
+**Solution:** Use double backslashes or forward slashes:
+
+```json
+{
+  "args": ["C:\\Users\\me\\mcp_server\\dist\\index.js"]
+}
+```
+
+Or:
+
+```json
+{
+  "args": ["C:/Users/me/mcp_server/dist/index.js"]
+}
+```
+
+---
+
+## Repository Layout
+
+```
 mcp_server/
 ├── .claude-plugin/           # Claude Code marketplace manifest
 │   └── marketplace.json
+├── .github/
+│   ├── workflows/            # CI and release workflows
+│   │   ├── ci.yml
+│   │   └── release.yml
+│   └── pull_request_template.md
+├── docs/                     # Documentation
+│   ├── README.md             # Docs index
+│   ├── AGENTS.md             # Tool ↔ HTTP mapping
+│   └── mcp-phase2/
+│       ├── CONSUMER.md       # API expectations
+│       └── tool-prompts.md   # Sample prompts for evals
 ├── plugins/
-│   └── fuul-mcp/             # Plugin: MCP config + skill
+│   └── fuul-mcp/             # Claude Code plugin
 │       ├── .claude-plugin/
 │       │   └── plugin.json
-│       ├── .mcp.json
-│       └── skills/fuul/SKILL.md
+│       ├── .mcp.json         # MCP server config
+│       └── skills/
+│           └── fuul/
+│               └── SKILL.md  # Tool usage instructions
 ├── src/                      # TypeScript source
-├── docs/                     # Maintainer and integrator docs
-├── .github/workflows/        # ci.yml, release.yml (semantic-release; name must match npm Trusted Publishing)
-├── release.config.cjs        # semantic-release plugins and branches
-└── dist/                     # `npm run build` (gitignored)
+│   ├── affiliate-portal/     # Affiliate analytics
+│   ├── agent/                # Write confirmation logic
+│   ├── auth/                 # OAuth and tokens
+│   ├── config/               # Environment config
+│   ├── http/                 # HTTP client
+│   ├── metadata/             # Chains, triggers, schemas
+│   ├── payouts/              # Payout operations
+│   ├── tools/                # MCP tool definitions
+│   ├── triggers/             # Trigger operations
+│   ├── util/                 # Utilities
+│   ├── cli.ts                # CLI entry point
+│   └── index.ts              # MCP server entry point
+├── dist/                     # Compiled output (gitignored)
+├── .env.example              # Environment template
+├── CHANGELOG.md              # Release notes
+├── package.json
+├── release.config.cjs        # semantic-release config
+├── tsconfig.json
+└── vitest.config.ts
 ```
+
+---
+
+## Scripts Reference
+
+| Script | Description |
+|--------|-------------|
+| `npm run build` | Compile TypeScript → `dist/` |
+| `npm start` | Run MCP server (`node dist/index.js`) |
+| `npm run dev` | Run MCP server with hot reload (`tsx src/index.ts`) |
+| `npm run cli` | Run OAuth CLI (`tsx src/cli.ts`) |
+| `npm run lint` | ESLint on `src/` |
+| `npm run lint:fix` | Auto-fix lint issues |
+| `npm run test` | Run tests with Vitest |
+| `npm run test:ci` | Run tests in CI mode |
+| `npm run format` | Format code with Prettier |
+
+---
+
+## Documentation
+
+| Resource | Description |
+|----------|-------------|
+| [docs/README.md](docs/README.md) | Documentation index |
+| [docs/AGENTS.md](docs/AGENTS.md) | Tool ↔ HTTP endpoint mapping |
+| [docs/mcp-phase2/CONSUMER.md](docs/mcp-phase2/CONSUMER.md) | Staging/production URLs, API expectations |
+| [docs/mcp-phase2/tool-prompts.md](docs/mcp-phase2/tool-prompts.md) | Sample prompts for testing and evals |
+| [CHANGELOG.md](CHANGELOG.md) | Release notes |
+
+---
+
+## CI and Releases
+
+### Continuous Integration
+
+On each push/PR to `main`, `master`, `beta`, or `alpha`, GitHub Actions runs:
+- **lint** — ESLint checks
+- **test** — Vitest test suite
+- **build** — TypeScript compilation
+
+### Publishing
+
+Releases are automated via **semantic-release** and **npm Trusted Publishing (OIDC)**:
+
+1. Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `BREAKING CHANGE:`
+2. Merge to `main` (or `beta`/`alpha` for pre-releases)
+3. GitHub Actions runs `semantic-release`, which:
+   - Determines the next version from commits
+   - Updates `package.json` and `CHANGELOG.md`
+   - Publishes to npm
+   - Creates a GitHub release
+
+No manual `npm publish` or GitHub Release creation needed.
+
+---
 
 ## Requirements
 
-- **Node.js** 18+
+- **Node.js** 18 or higher
 - A running **fuul-server** (staging or production) with **Agent OAuth** configured
 
-## CI and releases
-
-On each push/PR to `main` / `master`, GitHub Actions runs **lint**, **test**, and **build** in parallel (see [.github/workflows/ci.yml](.github/workflows/ci.yml)). Pushes to `beta` / `alpha` also run CI on those branches.
-
-## Publishing
-
-**npm** releases are performed by **semantic-release** in GitHub Actions (same approach as [fuul-sdk](https://github.com/kuyen-labs/fuul-sdk)). You do not need to create a GitHub Release manually or run `npm publish` locally for the default flow.
-
-1. **npm — [Trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC):** [.github/workflows/release.yml](.github/workflows/release.yml) uses the same **steps and permissions** as [fuul-sdk](https://github.com/kuyen-labs/fuul-sdk)’s release job (`id-token: write`, no `NPM_TOKEN` in the workflow). The **filename** is **`release.yml`** here so it matches what you enter in npm’s trusted-publisher form (fuul-sdk uses **`versioning.yml`** instead — that name is only for that repo). On npmjs.com, **`@fuul/mcp-server`** must list workflow **`.github/workflows/release.yml`** for **`kuyen-labs` / `mcp_server`**. If npm still shows **`OIDC … 404`**, the path/org/repo in npm does not match this file.  
-   **About `NPM_TOKEN` in caps:** npm docs use that name for **classic token** auth. With **Trusted Publishing** you do **not** put a token value into npm for OIDC; GitHub provides the identity. You also do **not** need a GitHub secret named `NPM_TOKEN` for this flow. (If the npm UI showed `NPM_TOKEN`, it is usually help text for the non-OIDC case.)
-2. **Branches**: on **push** to `main`, `beta`, or `alpha`, that workflow runs `npm ci`, **build**, **`npm run test:ci`**, then `npx semantic-release` on push only.
-3. **Config**: [release.config.cjs](release.config.cjs) matches fuul-sdk’s plugin list and order; `@semantic-release/exec` uses the same **`verifyReleaseCmd`** writing `src/release.json` (placeholder [src/release.json](src/release.json)); `@semantic-release/git` commits **`package.json`** only.
-4. **Commits**: use [Conventional Commits](https://www.conventionalcommits.org/) on releasable branches (e.g. `feat:`, `fix:`, `BREAKING CHANGE:`) so the next version is computed; if nothing warrants a release, the job exits without publishing (expected).
-
-Local dry run of the same CLI: `npm run semantic-release` (needs a clean git state, tags, and env vars; in practice CI after merge is enough).
-
-## Scripts
-
-| Script | Description |
-| ------ | ----------- |
-| `npm run build` | Compile TypeScript → `dist/` |
-| `npm start` | Run MCP server (`node dist/index.js`) |
-| `npm run cli` | OAuth CLI via `tsx` (`src/cli.ts`) |
-| `npm run dev` | MCP via `tsx` (`src/index.ts`) |
-| `npm run lint` | ESLint on `src/` |
-| `npm run test` | Vitest |
-| `npm run test:ci` | Vitest (same as `test`; used by `release.yml` like fuul-sdk’s `test:ci` in `versioning.yml`) |
-| `npm run semantic-release` | Run semantic-release locally (CI runs `npx semantic-release` on eligible pushes) |
+---
 
 ## License
 
-MIT — see `package.json`.
+MIT — see [package.json](package.json)
