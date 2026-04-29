@@ -1,6 +1,6 @@
 {
   "name": "@fuul/mcp-server",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Fuul MCP server for program management via MCP-compatible clients",
   "keywords": [
     "Fuul",
