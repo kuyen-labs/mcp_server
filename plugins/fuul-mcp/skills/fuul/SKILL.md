@@ -11,7 +11,7 @@ You have access to the **Fuul** Model Context Protocol server (`fuul` in the too
 1. **OAuth is not an MCP tool.** If `whoami` fails or API tools return 401, the user must sign in once in a terminal:
 
    ```bash
-   npx -y @fuul/mcp-server@latest fuul-mcp login
+   npx -y --package=@fuul/mcp-server@latest fuul-mcp login
    ```
 
    Tokens are stored in `~/.fuul/tokens.json` (Windows: `%USERPROFILE%\.fuul\tokens.json`). The MCP process reads the same file.
