@@ -40,6 +40,11 @@ type AuthorizedRequestOptions = {
   /** Query string params (GET, etc.). */
   params?: Record<string, unknown>;
   data?: unknown;
+  /**
+   * When set, sends this Bearer and skips OAuth token store (no refresh on 401).
+   * Used for project API key routes such as /api/v1/project-affiliates.
+   */
+  bearerToken?: string;
 };
 
 /**
@@ -102,41 +107,58 @@ export class FuulApiClient {
     };
   }
 
-  /**
-   * GET expecting 2xx JSON body; throws {@link ApiRequestError} otherwise (including 429 with retry hint).
-   */
-  async getJson(url: string, options?: { query?: Record<string, unknown>; headers?: Record<string, string> }): Promise<unknown> {
+  async getJson(
+    url: string,
+    options?: { query?: Record<string, unknown>; headers?: Record<string, string>; bearerToken?: string },
+  ): Promise<unknown> {
     const res = await this.executeAuthorizedRequest<unknown>({
       method: 'GET',
       url,
       headers: options?.headers,
       params: options?.query,
+      bearerToken: options?.bearerToken,
     });
     throwIfNotSuccess(res);
     return res.data;
   }
 
-  async postJson(url: string, body: unknown): Promise<unknown> {
+  async postJson(url: string, body: unknown, options?: { bearerToken?: string }): Promise<unknown> {
     const res = await this.executeAuthorizedRequest<unknown>({
       method: 'POST',
       url,
       data: body,
+      bearerToken: options?.bearerToken,
     });
     throwIfNotSuccess(res);
     return res.data;
   }
 
-  async patchJson(url: string, body: unknown): Promise<unknown> {
+  async patchJson(url: string, body: unknown, options?: { bearerToken?: string }): Promise<unknown> {
     const res = await this.executeAuthorizedRequest<unknown>({
       method: 'PATCH',
       url,
       data: body,
+      bearerToken: options?.bearerToken,
     });
     throwIfNotSuccess(res);
     return res.data;
   }
 
   private async executeAuthorizedRequest<T>(opts: AuthorizedRequestOptions): Promise<AxiosResponse<T>> {
+    if (opts.bearerToken) {
+      return this.http.request<T>({
+        method: opts.method,
+        url: opts.url,
+        headers: {
+          Authorization: `Bearer ${opts.bearerToken}`,
+          'Content-Type': 'application/json',
+          ...opts.headers,
+        },
+        params: opts.params,
+        data: opts.data,
+      });
+    }
+
     let tokens = await this.tokenStore.read();
     if (!tokens?.access_token) {
       throw new NotLoggedInError();
