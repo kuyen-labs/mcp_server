@@ -191,3 +191,134 @@ export const getProjectAffiliatesBreakdownSchema = z.object({
 });
 
 export type GetProjectAffiliatesBreakdownInput = z.infer<typeof getProjectAffiliatesBreakdownSchema>;
+
+const identifierTypeForAffiliateSchema = z.enum(['evm_address', 'solana_address', 'sui_address', 'xrpl_address', 'email']);
+
+export const projectApiKeyBearerFieldsSchema = z.object({
+  project_api_key: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Project API key used as Bearer for this request. Falls back to FUUL_MCP_PROJECT_API_KEY when omitted.'),
+});
+
+export const tierProtectionPublicBodySchema = z.object({
+  tier_id: uuid,
+  expires_at: z.string().optional(),
+  protection_days: z.coerce.number().int().min(1).max(365).optional(),
+});
+
+function approveTiersRequireReviewer(val: { approve_project_tier_ids?: string[] | undefined; reviewed_by_user_id?: string | undefined }): boolean {
+  const ids = val.approve_project_tier_ids;
+  if (ids != null && ids.length > 0 && val.reviewed_by_user_id == null) {
+    return false;
+  }
+  return true;
+}
+
+export const createProjectAffiliatePublicFieldsSchema = writeConfirmationFieldsSchema.merge(projectApiKeyBearerFieldsSchema).extend({
+  user_identifier: z.string().min(1),
+  user_identifier_type: identifierTypeForAffiliateSchema,
+  alias: z.string().optional(),
+  region: z.string().optional(),
+  status: z.string().optional(),
+  note: z.string().optional(),
+  audiences: z.array(uuid).optional(),
+  approve_project_tier_ids: z.array(uuid).optional(),
+  reviewed_by_user_id: uuid.optional(),
+  tier_protection: tierProtectionPublicBodySchema.optional(),
+});
+
+export const createProjectAffiliatePublicInputSchema = createProjectAffiliatePublicFieldsSchema
+  .superRefine((val, ctx) => {
+    if (!approveTiersRequireReviewer(val)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'reviewed_by_user_id is required when approve_project_tier_ids is non-empty',
+        path: ['reviewed_by_user_id'],
+      });
+    }
+  })
+  .superRefine((val, ctx) => {
+    const tp = val.tier_protection;
+    if (tp == null) {
+      return;
+    }
+    const hasExp = tp.expires_at != null && tp.expires_at !== '';
+    const hasDays = tp.protection_days != null;
+    if (hasExp === hasDays) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'tier_protection requires exactly one of expires_at or protection_days',
+        path: ['tier_protection'],
+      });
+    }
+  });
+
+export type CreateProjectAffiliatePublicInput = z.infer<typeof createProjectAffiliatePublicInputSchema>;
+
+export const updateProjectAffiliatePublicFieldsSchema = writeConfirmationFieldsSchema.merge(projectApiKeyBearerFieldsSchema).extend({
+  project_affiliate_id: uuid.describe('Projects-affiliates row id (returned by create_project_affiliate_public or the dashboard).'),
+  alias: z.string().optional(),
+  region: z.string().optional(),
+  status: z.string().optional(),
+  note: z.string().optional(),
+  audiences: z.array(uuid).optional(),
+  approve_project_tier_ids: z.array(uuid).optional(),
+  reviewed_by_user_id: uuid.optional(),
+  tier_protection: z.union([tierProtectionPublicBodySchema, z.null()]).optional(),
+});
+
+export const updateProjectAffiliatePublicInputSchema = updateProjectAffiliatePublicFieldsSchema
+  .superRefine((val, ctx) => {
+    if (!approveTiersRequireReviewer(val)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'reviewed_by_user_id is required when approve_project_tier_ids is non-empty',
+        path: ['reviewed_by_user_id'],
+      });
+    }
+  })
+  .superRefine((val, ctx) => {
+    if (val.dry_run === true) {
+      return;
+    }
+    const hasPatch =
+      val.alias !== undefined ||
+      val.region !== undefined ||
+      val.status !== undefined ||
+      val.note !== undefined ||
+      val.audiences !== undefined ||
+      val.approve_project_tier_ids !== undefined ||
+      val.reviewed_by_user_id !== undefined ||
+      val.tier_protection !== undefined;
+    if (!hasPatch) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'Provide at least one field to patch (e.g. alias, status, audiences, tier_protection, approve_project_tier_ids) or use dry_run: true.',
+        path: [],
+      });
+    }
+  })
+  .superRefine((val, ctx) => {
+    const tp = val.tier_protection;
+    if (tp == null || tp === null) {
+      return;
+    }
+    const hasExp = tp.expires_at != null && tp.expires_at !== '';
+    const hasDays = tp.protection_days != null;
+    if (hasExp === hasDays) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'tier_protection requires exactly one of expires_at or protection_days',
+        path: ['tier_protection'],
+      });
+    }
+  });
+
+export const getProjectAffiliatePublicInputSchema = projectApiKeyBearerFieldsSchema.extend({
+  project_affiliate_id: uuid,
+});
+
+export type GetProjectAffiliatePublicInput = z.infer<typeof getProjectAffiliatePublicInputSchema>;
