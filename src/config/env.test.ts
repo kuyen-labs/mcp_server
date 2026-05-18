@@ -14,4 +14,12 @@ describe('loadEnv', () => {
     expect(env.FUUL_OAUTH_CLIENT_ID).toBe('fuul-agent');
     expect(env.FUUL_OAUTH_REDIRECT_URI).toBe('http://127.0.0.1:8765/callback');
   });
+
+  it('treats empty FUUL_MCP_PROJECT_API_KEY as unset', () => {
+    const env = loadEnv({
+      ...process.env,
+      FUUL_MCP_PROJECT_API_KEY: '',
+    });
+    expect(env.FUUL_MCP_PROJECT_API_KEY).toBeUndefined();
+  });
 });
