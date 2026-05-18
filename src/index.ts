@@ -12,12 +12,15 @@ import { OAuthClient } from './auth/oauth-client.js';
 import { TokenStore } from './auth/token-store.js';
 import { loadEnv } from './config/env.js';
 import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-api-client.js';
+import { MissingProjectApiKeyError, resolveProjectApiKeyBearer } from './http/project-api-key-bearer.js';
 import { MetadataService } from './metadata/metadata-service.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import {
   APPROVE_PAYOUTS_DESCRIPTION,
+  CREATE_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
   GET_AFFILIATE_PORTAL_STATS_DESCRIPTION,
   GET_INCENTIVE_DESCRIPTION,
+  GET_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
   GET_PROJECT_AFFILIATE_TOTAL_STATS_DESCRIPTION,
   GET_PROJECT_AFFILIATES_BREAKDOWN_DESCRIPTION,
   GET_PROJECT_DESCRIPTION,
@@ -33,13 +36,17 @@ import {
   REJECT_PAYOUTS_DESCRIPTION,
   UPDATE_AUDIENCE_DESCRIPTION,
   UPDATE_PAYOUT_TERM_DESCRIPTION,
+  UPDATE_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
   UPDATE_PROJECT_TIER_DESCRIPTION,
   UPDATE_TRIGGER_DESCRIPTION,
   WHOAMI_DESCRIPTION,
 } from './tools/tool-descriptions.js';
 import {
+  createProjectAffiliatePublicFieldsSchema,
+  createProjectAffiliatePublicInputSchema,
   getAffiliatePortalStatsSchema,
   getIncentiveInputSchema,
+  getProjectAffiliatePublicInputSchema,
   getProjectAffiliatesBreakdownSchema,
   getProjectAffiliateTotalStatsSchema,
   getTriggerInputSchema,
@@ -51,6 +58,8 @@ import {
   updateAudienceFieldsSchema,
   updateAudienceInputSchema,
   updatePayoutTermInputSchema,
+  updateProjectAffiliatePublicFieldsSchema,
+  updateProjectAffiliatePublicInputSchema,
   updateProjectTierFieldsSchema,
   updateProjectTierInputSchema,
   updateTriggerFieldsSchema,
@@ -67,7 +76,9 @@ function toolErrorPayload(e: unknown, httpDetail = 'Request failed'): { content:
         ? e.message
         : e instanceof WriteNotConfirmedError
           ? e.message
-          : e instanceof ApiRequestError
+          : e instanceof MissingProjectApiKeyError
+            ? e.message
+            : e instanceof ApiRequestError
               ? e.status === 401
                 ? `${httpDetail} (HTTP ${e.status}). Run \`fuul-mcp login\` if you are not authenticated.`
                 : e.message
@@ -75,6 +86,18 @@ function toolErrorPayload(e: unknown, httpDetail = 'Request failed'): { content:
                 ? e.message
                 : String(e);
   return { content: [{ type: 'text', text: message }], isError: true };
+}
+
+function managedProjectAffiliateBody(parsed: Record<string, unknown>, extraOmit: readonly string[]): Record<string, unknown> {
+  const omit = new Set<string>(['dry_run', 'confirmed', 'project_api_key', ...extraOmit]);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(parsed)) {
+    if (omit.has(k) || v === undefined) {
+      continue;
+    }
+    out[k] = v;
+  }
+  return out;
 }
 
 async function main(): Promise<void> {
@@ -223,6 +246,77 @@ async function main(): Promise<void> {
         return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
       } catch (e) {
         return toolErrorPayload(e, 'Failed to load project affiliates breakdown');
+      }
+    },
+  );
+
+  server.tool('get_project_affiliate_public', GET_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION, getProjectAffiliatePublicInputSchema.shape, async (args) => {
+    try {
+      const parsed = getProjectAffiliatePublicInputSchema.parse(args);
+      const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);
+      const data = await withTimeout(
+        api.getJson(`/api/v1/project-affiliates/${parsed.project_affiliate_id}`, { bearerToken: bearer }),
+        toolTimeoutMs,
+        'get_project_affiliate_public',
+      );
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to load managed project affiliate');
+    }
+  });
+
+  server.tool(
+    'create_project_affiliate_public',
+    CREATE_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
+    createProjectAffiliatePublicFieldsSchema.shape,
+    async (args) => {
+      try {
+        const parsed = createProjectAffiliatePublicInputSchema.parse(args);
+        const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);
+        assertWriteConfirmedOrDryRun(parsed);
+        const body = managedProjectAffiliateBody(parsed as unknown as Record<string, unknown>, []);
+        if (parsed.dry_run === true) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ dry_run: true, would_post: '/api/v1/project-affiliates', body }, null, 2),
+              },
+            ],
+          };
+        }
+        const data = await withTimeout(
+          api.postJson('/api/v1/project-affiliates', body, { bearerToken: bearer }),
+          toolTimeoutMs,
+          'create_project_affiliate_public',
+        );
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      } catch (e) {
+        return toolErrorPayload(e, 'Failed to create managed project affiliate');
+      }
+    },
+  );
+
+  server.tool(
+    'update_project_affiliate_public',
+    UPDATE_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
+    updateProjectAffiliatePublicFieldsSchema.shape,
+    async (args) => {
+      try {
+        const parsed = updateProjectAffiliatePublicInputSchema.parse(args);
+        const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);
+        assertWriteConfirmedOrDryRun(parsed);
+        const body = managedProjectAffiliateBody(parsed as unknown as Record<string, unknown>, ['project_affiliate_id']);
+        const path = `/api/v1/project-affiliates/${parsed.project_affiliate_id}`;
+        if (parsed.dry_run === true) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ dry_run: true, would_patch: path, body }, null, 2) }],
+          };
+        }
+        const data = await withTimeout(api.patchJson(path, body, { bearerToken: bearer }), toolTimeoutMs, 'update_project_affiliate_public');
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      } catch (e) {
+        return toolErrorPayload(e, 'Failed to update managed project affiliate');
       }
     },
   );
