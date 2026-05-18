@@ -19,6 +19,9 @@ Single map for tools ↔ HTTP, env, and write conventions. Documentation index: 
 | `get_affiliate_portal_stats` | `GET /api/v1/projects/:projectId/affiliate-portal/stats` | Bearer |
 | `get_project_affiliate_total_stats` | `GET /api/v1/projects/:projectId/affiliate-portal/total-stats` | Bearer |
 | `get_project_affiliates_breakdown` | `GET /api/v1/projects/:projectId/affiliate-portal/global-breakdown` | Bearer |
+| `get_project_affiliate_public` | `GET /api/v1/project-affiliates/:projectAffiliateId` | **Project API key** Bearer (not dashboard JWT; see below) |
+| `create_project_affiliate_public` | `POST /api/v1/project-affiliates` | Project API key Bearer + dry_run / confirmed |
+| `update_project_affiliate_public` | `PATCH /api/v1/project-affiliates/:projectAffiliateId` | Project API key Bearer + dry_run / confirmed |
 | `create_incentive_program` | `POST /api/v1/projects/:projectId/incentives` | Bearer + dry_run / confirmed |
 | `update_incentive_program` | `PATCH /api/v1/projects/:projectId/incentives/:conversionId` | Bearer + dry_run / confirmed |
 | `list_payouts_pending_approval` | `GET .../payouts/pending-approval` | Bearer |
@@ -33,6 +36,12 @@ CLI (`login`, `whoami`, `logout`) shares the same API origin and token file.
 All mutation tools require **`dry_run: true`** first (validation / preview) then **`confirmed: true`** to execute. Implementation: `src/agent/write-confirmation.ts`.  
 `create_incentive_program` / `update_incentive_program` also enforce **trigger `schema_status === "present"`** from `list_trigger_types` (Phase 1 metadata policy).
 
+## Project-affiliates public API (managed affiliates)
+
+These three tools call fuul-server routes protected by **`ApiKeyMiddleware`**: the Bearer token must be the **project API key** for the target project (same as server-side integrations). The dashboard **`fuul-mcp login` JWT is not accepted** on `/api/v1/project-affiliates/*`.
+
+Resolution order: optional per-call `project_api_key` on the tool input, else env **`FUUL_MCP_PROJECT_API_KEY`**. See `src/http/project-api-key-bearer.ts`.
+
 ## Pagination / cursors
 
 Project list uses **`page`** (1-based) and optional **`query`**, matching the dashboard API today. Cursor-based pagination is not exposed by the API yet; this server forwards supported query params only.
@@ -42,11 +51,13 @@ Project list uses **`page`** (1-based) and optional **`query`**, matching the da
 | Variable | Notes |
 | --- | --- |
 | `FUUL_API_BASE_URL` | API **origin** only. Staging: `https://api.stg.fuul.xyz`. Production: `https://api.fuul.xyz`. |
+| `FUUL_MCP_PROJECT_API_KEY` | Optional default **project** API key for `get_project_affiliate_public`, `create_project_affiliate_public`, `update_project_affiliate_public`. Empty string is treated as unset. |
 | `FUUL_MCP_TOOL_TIMEOUT_MS` | Per-tool timeout (default `90000`). |
 
 ## Server expectations
 
-- JWT session after `fuul-mcp login` (Agent OAuth on fuul-server + app host).
+- JWT session after `fuul-mcp login` (Agent OAuth on fuul-server + app host) for **dashboard** tools in the table marked “Bearer”.
+- **Project-affiliates** tools use a **project API key** instead; configure `FUUL_MCP_PROJECT_API_KEY` or pass `project_api_key` on each call.
 - Metadata routes above and project/incentive/payout routes on the same API version as the dashboard you target.
 
 ## Further docs

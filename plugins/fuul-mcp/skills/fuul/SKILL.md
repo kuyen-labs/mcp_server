@@ -4,7 +4,7 @@ description: Use Fuul MCP tools for projects, affiliate analytics, incentives, p
 
 # Fuul MCP
 
-You have access to the **Fuul** Model Context Protocol server (`fuul` in the toolkit). It talks to the Fuul dashboard API with the same JWT session as the web app.
+You have access to the **Fuul** Model Context Protocol server (`fuul` in the toolkit). Most tools use the same **JWT session** as the web app after `fuul-mcp login`. **Managed project affiliates** (`get_project_affiliate_public`, `create_project_affiliate_public`, `update_project_affiliate_public`) use the **project API key** instead — not the login JWT.
 
 ## Before calling API tools
 
@@ -20,6 +20,8 @@ You have access to the **Fuul** Model Context Protocol server (`fuul` in the too
 
 3. **Rate limits:** On HTTP 429, wait for `Retry-After` when present, then retry.
 
+4. **Project API key (affiliates CRUD):** For `get_project_affiliate_public` / `create_project_affiliate_public` / `update_project_affiliate_public`, set **`FUUL_MCP_PROJECT_API_KEY`** to the project’s API key, or pass **`project_api_key`** on each tool call. Without it, those tools return a clear configuration error.
+
 ## Tool map (quick)
 
 | Area | Tools |
@@ -28,14 +30,15 @@ You have access to the **Fuul** Model Context Protocol server (`fuul` in the too
 | Metadata (cached) | `list_chains`, `list_trigger_types`, `list_payout_schemas` |
 | Projects / programs | `list_projects`, `get_project`, `list_incentives`, `get_incentive`, `get_trigger` |
 | Affiliate analytics | `get_affiliate_portal_stats`, `get_project_affiliate_total_stats`, `get_project_affiliates_breakdown` |
+| Managed affiliates (project API key) | `get_project_affiliate_public`, `create_project_affiliate_public`, `update_project_affiliate_public` |
 | Payout reads | `list_payouts_pending_approval`, `list_rewards_payouts` |
-| Writes | `create_incentive_program`, `update_incentive_program`, `approve_payouts`, `reject_payouts` |
+| Writes | `create_incentive_program`, `update_incentive_program`, `approve_payouts`, `reject_payouts`, `create_project_affiliate_public`, `update_project_affiliate_public` |
 
 Full HTTP map: repository `docs/AGENTS.md`.
 
 ## Writes: always `dry_run` then `confirmed`
 
-For `create_incentive_program`, `update_incentive_program`, `approve_payouts`, `reject_payouts`:
+For `create_incentive_program`, `update_incentive_program`, `approve_payouts`, `reject_payouts`, `create_project_affiliate_public`, `update_project_affiliate_public`:
 
 1. Call with **`dry_run: true`** — validate and return a preview; no mutation.
 2. Show the user the preview; on approval, call again with **`confirmed: true`** (same payload shape where applicable).
