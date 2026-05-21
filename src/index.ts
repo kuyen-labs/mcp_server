@@ -11,12 +11,14 @@ import { assertWriteConfirmedOrDryRun, WriteNotConfirmedError } from './agent/wr
 import { OAuthClient } from './auth/oauth-client.js';
 import { TokenStore } from './auth/token-store.js';
 import { loadEnv } from './config/env.js';
+import { runCheckEventStatus, runSendBatchEvents, runSendEvent } from './events/events-handlers.js';
 import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-api-client.js';
 import { MissingProjectApiKeyError, resolveProjectApiKeyBearer } from './http/project-api-key-bearer.js';
 import { MetadataService } from './metadata/metadata-service.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import {
   APPROVE_PAYOUTS_DESCRIPTION,
+  CHECK_EVENT_STATUS_DESCRIPTION,
   CREATE_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
   GET_AFFILIATE_PORTAL_STATS_DESCRIPTION,
   GET_INCENTIVE_DESCRIPTION,
@@ -34,6 +36,8 @@ import {
   LIST_TRIGGER_TYPES_DESCRIPTION,
   PING_DESCRIPTION,
   REJECT_PAYOUTS_DESCRIPTION,
+  SEND_BATCH_EVENTS_DESCRIPTION,
+  SEND_EVENT_DESCRIPTION,
   UPDATE_AUDIENCE_DESCRIPTION,
   UPDATE_PAYOUT_TERM_DESCRIPTION,
   UPDATE_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
@@ -42,6 +46,7 @@ import {
   WHOAMI_DESCRIPTION,
 } from './tools/tool-descriptions.js';
 import {
+  checkEventStatusInputSchema,
   createProjectAffiliatePublicFieldsSchema,
   createProjectAffiliatePublicInputSchema,
   getAffiliatePortalStatsSchema,
@@ -55,6 +60,10 @@ import {
   listRewardsPayoutsSchema,
   payoutBatchActionInputSchema,
   projectIdParamSchema,
+  sendBatchEventsFieldsSchema,
+  sendBatchEventsInputSchema,
+  sendEventFieldsSchema,
+  sendEventInputSchema,
   updateAudienceFieldsSchema,
   updateAudienceInputSchema,
   updatePayoutTermInputSchema,
@@ -320,6 +329,39 @@ async function main(): Promise<void> {
       }
     },
   );
+
+  server.tool('send_event', SEND_EVENT_DESCRIPTION, sendEventFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = sendEventInputSchema.parse(args);
+      const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);
+      const data = await withTimeout(runSendEvent(api, bearer, parsed), toolTimeoutMs, 'send_event');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to send event');
+    }
+  });
+
+  server.tool('send_batch_events', SEND_BATCH_EVENTS_DESCRIPTION, sendBatchEventsFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = sendBatchEventsInputSchema.parse(args);
+      const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);
+      const data = await withTimeout(runSendBatchEvents(api, bearer, parsed), toolTimeoutMs, 'send_batch_events');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to send batch events');
+    }
+  });
+
+  server.tool('check_event_status', CHECK_EVENT_STATUS_DESCRIPTION, checkEventStatusInputSchema.shape, async (args) => {
+    try {
+      const parsed = checkEventStatusInputSchema.parse(args);
+      const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);
+      const data = await withTimeout(runCheckEventStatus(api, bearer, parsed), toolTimeoutMs, 'check_event_status');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to check event status');
+    }
+  });
 
   server.tool('list_payouts_pending_approval', LIST_PAYOUTS_PENDING_APPROVAL_DESCRIPTION, listPayoutsPendingApprovalSchema.shape, async (args) => {
     try {
