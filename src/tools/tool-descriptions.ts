@@ -96,3 +96,29 @@ export const UPDATE_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION =
   'Updates a managed project affiliate: PATCH /api/v1/project-affiliates/:projectAffiliateId. Partial body (alias, region, status, note, audiences, tier_protection including null to clear, approve_project_tier_ids with reviewed_by_user_id).' +
   PROJECT_API_KEY_HINT +
   ' dry_run then confirmed. Example dry_run: {"project_affiliate_id":"<uuid>","alias":"New name","dry_run":true}.';
+
+const EVENTS_SEND_RATE_LIMIT = ' Rate limit: 100 requests/minute.';
+const EVENTS_BATCH_RATE_LIMIT = ' Rate limit: 10 requests/minute.';
+
+export const SEND_EVENT_DESCRIPTION =
+  'Send one conversion event: POST /api/v1/events. Triggers real-time reward attribution. Required: name (trigger name), user_identifier, user_identifier_type, dedup_id. Optional: args, timestamp (ms). ' +
+  'Duplicate dedup_id returns HTTP 409. Use check_event_status before resending. dry_run then confirmed.' +
+  PROJECT_API_KEY_HINT +
+  EVENTS_SEND_RATE_LIMIT +
+  RATE_LIMIT_HINT +
+  ' Example dry_run: {"name":"trade","user_identifier":"0x...","user_identifier_type":"evm_address","dedup_id":"uuid-here","dry_run":true}.';
+
+export const SEND_BATCH_EVENTS_DESCRIPTION =
+  'Send up to 100 conversion events: POST /api/v1/events/batch. For backfills and bulk ingestion; processing is atomic (all succeed or all fail). Duplicate dedup_id values are silently ignored; response includes ingested_events count.' +
+  PROJECT_API_KEY_HINT +
+  ' dry_run then confirmed.' +
+  EVENTS_BATCH_RATE_LIMIT +
+  RATE_LIMIT_HINT +
+  ' Example dry_run: {"events":[{"name":"trade","user_identifier":"0x...","user_identifier_type":"evm_address","dedup_id":"id-1"}],"dry_run":true}.';
+
+export const CHECK_EVENT_STATUS_DESCRIPTION =
+  'Check if an event exists for a user: GET /api/v1/events/status. Query: user_identifier, user_identifier_type, event_name (case-sensitive). Returns {"created":true} or {"created":false}.' +
+  PROJECT_API_KEY_HINT +
+  EVENTS_SEND_RATE_LIMIT +
+  RATE_LIMIT_HINT +
+  ' Example: {"user_identifier":"0x...","user_identifier_type":"evm_address","event_name":"trade"}.';

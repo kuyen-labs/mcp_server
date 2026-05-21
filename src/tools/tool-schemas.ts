@@ -322,3 +322,43 @@ export const getProjectAffiliatePublicInputSchema = projectApiKeyBearerFieldsSch
 });
 
 export type GetProjectAffiliatePublicInput = z.infer<typeof getProjectAffiliatePublicInputSchema>;
+
+const eventArgValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+
+/** Single conversion event payload (Public API SendEventRequest). */
+export const sendEventPayloadSchema = z.object({
+  name: z.string().min(1).max(200).describe('Trigger/event name configured in the project.'),
+  dedup_id: z.string().min(1).max(200).describe('Unique idempotency key; duplicates return HTTP 409 on single send.'),
+  user_identifier: z.string().min(1).describe('User who performed the action.'),
+  user_identifier_type: identifierTypeForAffiliateSchema,
+  args: z.record(z.string(), eventArgValueSchema).optional().describe('Optional key-value event metadata.'),
+  timestamp: z.coerce.number().int().nonnegative().optional().describe('Event time in ms since epoch; defaults to server time.'),
+});
+
+export type SendEventPayload = z.infer<typeof sendEventPayloadSchema>;
+
+export const sendEventFieldsSchema = projectApiKeyBearerFieldsSchema.merge(writeConfirmationFieldsSchema).merge(sendEventPayloadSchema);
+
+export const sendEventInputSchema = sendEventFieldsSchema;
+
+export type SendEventInput = z.infer<typeof sendEventInputSchema>;
+
+export const sendBatchEventsFieldsSchema = projectApiKeyBearerFieldsSchema.merge(writeConfirmationFieldsSchema).extend({
+  events: z
+    .array(sendEventPayloadSchema)
+    .min(1)
+    .max(100)
+    .describe('Up to 100 events per request; atomic batch. Duplicate dedup_id values are silently skipped.'),
+});
+
+export const sendBatchEventsInputSchema = sendBatchEventsFieldsSchema;
+
+export type SendBatchEventsInput = z.infer<typeof sendBatchEventsInputSchema>;
+
+export const checkEventStatusInputSchema = projectApiKeyBearerFieldsSchema.extend({
+  user_identifier: z.string().min(1),
+  user_identifier_type: identifierTypeForAffiliateSchema,
+  event_name: z.string().min(1).describe('Case-sensitive trigger name.'),
+});
+
+export type CheckEventStatusInput = z.infer<typeof checkEventStatusInputSchema>;
