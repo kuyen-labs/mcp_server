@@ -288,6 +288,7 @@ Environment variables are read from `process.env` and, when present, a `.env` fi
 | `FUUL_OAUTH_CLIENT_ID` | `fuul-agent` | OAuth client ID |
 | `FUUL_OAUTH_REDIRECT_URI` | `http://127.0.0.1:8765/callback` | OAuth callback URL |
 | `FUUL_MCP_TOOL_TIMEOUT_MS` | `90000` | Per-tool timeout in milliseconds |
+| `FUUL_MCP_PROJECT_API_KEY` | _(unset)_ | Project API key (Bearer) for public API tools: managed affiliates and Events |
 | `FUUL_MCP_DEBUG` | `false` | Set to `1` or `true` for debug logging |
 
 ### Example `.env` file
@@ -312,6 +313,8 @@ FUUL_MCP_DEBUG=1
 | **Projects** | `list_projects`, `get_project` |
 | **Incentives** | `list_incentives`, `get_incentive`, `get_trigger` |
 | **Affiliate Analytics** | `get_affiliate_portal_stats`, `get_project_affiliate_total_stats`, `get_project_affiliates_breakdown` |
+| **Managed Affiliates** (project API key) | `get_project_affiliate_public`, `create_project_affiliate_public`, `update_project_affiliate_public` |
+| **Events** (project API key) | `send_event`, `send_batch_events`, `check_event_status` |
 | **Payouts (Read)** | `list_payouts_pending_approval`, `list_rewards_payouts` |
 | **Payouts (Write)** | `approve_payouts`, `reject_payouts` |
 | **Tiers** | `update_project_tier` |
@@ -389,6 +392,42 @@ All tools receive JSON arguments. Use real UUIDs from your tenant.
 `groupBy` options: `audience`, `tier`, `region`, `status`
 
 `dateRange` options: `7d`, `30d`, `90d`, `MTD`, `QTD`, `custom`, `all`
+
+#### Events (project API key)
+
+Requires `FUUL_MCP_PROJECT_API_KEY` or `project_api_key` on each call. Writes use `dry_run` then `confirmed`.
+
+```json
+// check_event_status
+{
+  "user_identifier": "0x80Fe27F878d2d42BD8b387F3cA4b96CBDEc05326",
+  "user_identifier_type": "evm_address",
+  "event_name": "trade"
+}
+
+// send_event (dry_run preview)
+{
+  "name": "trade",
+  "user_identifier": "0x80Fe27F878d2d42BD8b387F3cA4b96CBDEc05326",
+  "user_identifier_type": "evm_address",
+  "dedup_id": "4bdabf2c-271a-4d66-afd0-a9f24119810a",
+  "args": { "volume": 1000 },
+  "dry_run": true
+}
+
+// send_batch_events (confirmed)
+{
+  "events": [
+    {
+      "name": "trade",
+      "user_identifier": "0x80Fe27F878d2d42BD8b387F3cA4b96CBDEc05326",
+      "user_identifier_type": "evm_address",
+      "dedup_id": "batch-id-1"
+    }
+  ],
+  "confirmed": true
+}
+```
 
 #### Payout operations
 
