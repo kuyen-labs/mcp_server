@@ -367,6 +367,8 @@ All tools receive JSON arguments. Use real UUIDs from your tenant.
 { "project_id": "<uuid>", "trigger_id": "<uuid>" }
 ```
 
+> **Agents (Claude Code):** draft vs published trigger IDs — see plugin skill `plugins/fuul-mcp/skills/fuul/SKILL.md` § *Draft vs published*.
+
 #### Affiliate analytics
 
 ```json

@@ -19,16 +19,26 @@ export const LIST_PROJECTS_DESCRIPTION =
   'Lists dashboard projects for the current user: GET /api/v1/projects with optional ?page= (1-based) and ?query=. Example: {"page":1} or {"query":"acme"}.';
 
 export const GET_PROJECT_DESCRIPTION =
-  'Loads one project: GET /api/v1/projects/:projectId. Example: {"project_id":"550e8400-e29b-41d4-a716-446655440000"}.';
+  'Loads one project (draft + published trigger mapping). Calls GET /api/v1/projects/:projectId and GET /api/v1/projects/:projectId/customizations in parallel. ' +
+  'Replaces triggers[] with scoped rows: ref, signature, draft_trigger_id, published_trigger_id, draft, published. ' +
+  'Stable key across versions is ref (not UUID). After publish, draft and published rows get different UUIDs for the same ref. ' +
+  'conversions[] are draft incentives with nested triggers merged the same way; published_conversion_id is null until a future published-incentives API. ' +
+  'Example: {"project_id":"550e8400-e29b-41d4-a716-446655440000"}.';
 
 export const LIST_INCENTIVES_DESCRIPTION =
-  'Lists draft incentives (conversions) for a project: GET /api/v1/projects/:projectId/incentives. Example: {"project_id":"<uuid>"}.';
+  'Lists draft incentives with published trigger IDs merged by ref. Calls GET /api/v1/projects/:projectId/incentives and GET .../customizations. ' +
+  'Each item: slug, draft_conversion_id, published_conversion_id (null for now), draft, published (null), triggers[] (scoped merge). ' +
+  'Example: {"project_id":"<uuid>"}.';
 
 export const GET_INCENTIVE_DESCRIPTION =
-  'Gets one incentive: GET /api/v1/projects/:projectId/incentives/:conversionId. Example: {"project_id":"<uuid>","conversion_id":"<uuid>"}.';
+  'Gets one draft incentive with scoped triggers (same merge as list_incentives). conversion_id is the **draft** conversion UUID from incentives API. ' +
+  'Use draft_trigger_id from triggers[] for PATCH update_trigger; published_trigger_id for live/prod comparisons (e.g. SQL on project.metadata_id). ' +
+  'Example: {"project_id":"<uuid>","conversion_id":"<uuid>"}.';
 
 export const GET_TRIGGER_DESCRIPTION =
-  'Gets trigger details (including triggerType for metadata checks): GET /api/v1/projects/:projectId/triggers/:triggerId. Example: {"project_id":"<uuid>","trigger_id":"<uuid>"}.';
+  'Gets one trigger row by UUID: GET /api/v1/projects/:projectId/triggers/:triggerId. Returns whichever row that UUID points to (draft or published copy). ' +
+  'Does not resolve project.metadata_id. Prefer get_project or get_incentive triggers[] for draft_trigger_id vs published_trigger_id by ref. ' +
+  'Example: {"project_id":"<uuid>","trigger_id":"<uuid>"}.';
 
 export const UPDATE_PAYOUT_TERM_DESCRIPTION =
   'Updates one payout term on a draft conversion: PATCH /api/v1/projects/:projectId/conversions/:conversionId/payout_terms/:payoutTermId. ' +

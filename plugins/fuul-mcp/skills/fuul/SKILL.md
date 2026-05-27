@@ -1,5 +1,5 @@
 ---
-description: Use Fuul MCP tools for projects, affiliate analytics, incentives, payouts, events, and metadata; includes login and dry_run/confirmed write flow
+description: Use Fuul MCP tools for projects, affiliate analytics, incentives, payouts, events, and metadata; includes draft vs published trigger IDs (ref), login, and dry_run/confirmed write flow
 ---
 
 # Fuul MCP
@@ -36,6 +36,50 @@ You have access to the **Fuul** Model Context Protocol server (`fuul` in the too
 | Writes | `create_incentive_program`, `update_incentive_program`, `approve_payouts`, `reject_payouts`, `create_project_affiliate_public`, `update_project_affiliate_public`, `send_event`, `send_batch_events` |
 
 Full HTTP map: repository `docs/AGENTS.md`.
+
+## Draft vs published (triggers and incentives)
+
+Fuul separates **draft** metadata (dashboard edits) from **published** metadata (`project.metadata_id` in the DB). On publish, triggers are **cloned with new UUIDs**; **`ref` is the stable key** across versions.
+
+| Scope | HTTP | MCP tools |
+| --- | --- | --- |
+| Draft triggers | `GET /api/v1/projects/:id` → `triggers[]` | `get_project`, incentives |
+| Published triggers | `GET /api/v1/projects/:id/customizations` → `project.triggers[]` | same (merged in MCP) |
+| Draft incentives | `GET .../incentives` | `list_incentives`, `get_incentive` |
+| Published incentives | no list API yet | `published_conversion_id` is always `null` for now |
+
+**Always invoke this skill section** before comparing trigger UUIDs from `get_project` / incentives with SQL on `project.metadata_id` or calling `get_trigger` with an ID from the wrong scope.
+
+### Scoped `triggers[]` shape
+
+`get_project`, `list_incentives`, and `get_incentive` each call **two** APIs and return merged rows:
+
+```json
+{
+  "ref": "my-trigger-ref",
+  "signature": "event_name",
+  "draft_trigger_id": "uuid-or-null",
+  "published_trigger_id": "uuid-or-null",
+  "draft": { },
+  "published": { "id", "name", "ref", "signature", "trigger_ui_settings" }
+}
+```
+
+| Field | Use for |
+| --- | --- |
+| `draft_trigger_id` | `update_trigger`, draft edits, `get_trigger` when inspecting draft |
+| `published_trigger_id` | live/prod config, SQL on published metadata — match by **`ref`**, not draft UUID |
+| `ref` | correlate draft ↔ published when UUIDs differ after publish |
+
+### Tool rules
+
+- **`get_project`** — `triggers[]` is merged; `conversions[]` items include the same scoped `triggers[]` and `published_conversion_id: null`.
+- **`list_incentives` / `get_incentive`** — each item: `draft_conversion_id`, `published_conversion_id: null`, scoped `triggers[]`. `conversion_id` on `get_incentive` is the **draft** conversion UUID.
+- **`get_trigger`** — unchanged proxy: returns the row for the UUID you pass. It does **not** resolve `metadata_id`. Do not treat a draft UUID as the published row (or vice versa).
+
+### Common mistake (invalid bug report)
+
+Comparing `trigger_id` from draft `get_project` with a row in published metadata without matching **`ref`** looks like “wrong trigger” but is **scope mixing**. `get_trigger` is correct for the UUID requested.
 
 ## Writes: always `dry_run` then `confirmed`
 

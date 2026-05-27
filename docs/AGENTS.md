@@ -12,10 +12,10 @@ Single map for tools ↔ HTTP, env, and write conventions. Documentation index: 
 | `list_trigger_types` | `GET /public-api/v1/metadata/trigger-types` | Bearer |
 | `list_payout_schemas` | `GET /public-api/v1/metadata/payout-schemas` | Bearer |
 | `list_projects` | `GET /api/v1/projects` (`?page`, `?query`) | Bearer |
-| `get_project` | `GET /api/v1/projects/:projectId` | Bearer |
-| `list_incentives` | `GET /api/v1/projects/:projectId/incentives` | Bearer |
-| `get_incentive` | `GET /api/v1/projects/:projectId/incentives/:conversionId` | Bearer |
-| `get_trigger` | `GET /api/v1/projects/:projectId/triggers/:triggerId` | Bearer |
+| `get_project` | `GET .../projects/:id` + `GET .../customizations` (merge triggers by `ref`) | Bearer |
+| `list_incentives` | `GET .../incentives` + `GET .../customizations` (+ project for triggers) | Bearer |
+| `get_incentive` | `GET .../incentives/:id` + `GET .../customizations` (+ project) | Bearer |
+| `get_trigger` | `GET .../triggers/:triggerId` (single row; no scope merge) | Bearer |
 | `get_affiliate_portal_stats` | `GET /api/v1/projects/:projectId/affiliate-portal/stats` | Bearer |
 | `get_project_affiliate_total_stats` | `GET /api/v1/projects/:projectId/affiliate-portal/total-stats` | Bearer |
 | `get_project_affiliates_breakdown` | `GET /api/v1/projects/:projectId/affiliate-portal/global-breakdown` | Bearer |
@@ -69,6 +69,10 @@ Project list uses **`page`** (1-based) and optional **`query`**, matching the da
 - JWT session after `fuul-mcp login` (Agent OAuth on fuul-server + app host) for **dashboard** tools in the table marked “Bearer”.
 - **Project-affiliates** tools use a **project API key** instead; configure `FUUL_MCP_PROJECT_API_KEY` or pass `project_api_key` on each call.
 - Metadata routes above and project/incentive/payout routes on the same API version as the dashboard you target.
+
+## Draft vs published
+
+MCP merges draft and published trigger UUIDs in `get_project` / incentive reads (`draft_trigger_id`, `published_trigger_id` per `ref`). Agent-facing guide: [plugins/fuul-mcp/skills/fuul/SKILL.md](../plugins/fuul-mcp/skills/fuul/SKILL.md) § *Draft vs published*. Implementation: `src/metadata-scope/`.
 
 ## Further docs
 
