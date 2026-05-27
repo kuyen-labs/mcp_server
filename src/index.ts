@@ -15,6 +15,11 @@ import { runCheckEventStatus, runSendBatchEvents, runSendEvent } from './events/
 import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-api-client.js';
 import { MissingProjectApiKeyError, resolveProjectApiKeyBearer } from './http/project-api-key-bearer.js';
 import { MetadataService } from './metadata/metadata-service.js';
+import {
+  loadIncentivesListWithMetadataScope,
+  loadIncentiveWithMetadataScope,
+  loadProjectWithMetadataScope,
+} from './metadata-scope/fetch-project-config.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import {
   runRemoveUserFromReferralCode,
@@ -196,7 +201,7 @@ async function main(): Promise<void> {
   server.tool('get_project', GET_PROJECT_DESCRIPTION, projectIdParamSchema.shape, async (args) => {
     try {
       const { project_id } = projectIdParamSchema.parse(args);
-      const data = await withTimeout(api.getJson(`/api/v1/projects/${project_id}`), toolTimeoutMs, 'get_project');
+      const data = await loadProjectWithMetadataScope(api, project_id, toolTimeoutMs);
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to load project');
@@ -206,7 +211,7 @@ async function main(): Promise<void> {
   server.tool('list_incentives', LIST_INCENTIVES_DESCRIPTION, projectIdParamSchema.shape, async (args) => {
     try {
       const { project_id } = projectIdParamSchema.parse(args);
-      const data = await withTimeout(api.getJson(`/api/v1/projects/${project_id}/incentives`), toolTimeoutMs, 'list_incentives');
+      const data = await loadIncentivesListWithMetadataScope(api, project_id, toolTimeoutMs);
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to list incentives');
@@ -216,7 +221,7 @@ async function main(): Promise<void> {
   server.tool('get_incentive', GET_INCENTIVE_DESCRIPTION, getIncentiveInputSchema.shape, async (args) => {
     try {
       const { project_id, conversion_id } = getIncentiveInputSchema.parse(args);
-      const data = await withTimeout(api.getJson(`/api/v1/projects/${project_id}/incentives/${conversion_id}`), toolTimeoutMs, 'get_incentive');
+      const data = await loadIncentiveWithMetadataScope(api, project_id, conversion_id, toolTimeoutMs);
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to load incentive');
