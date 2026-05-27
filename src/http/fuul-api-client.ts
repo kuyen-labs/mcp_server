@@ -34,7 +34,7 @@ export class ApiRequestError extends Error {
 }
 
 type AuthorizedRequestOptions = {
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   url: string;
   headers?: Record<string, string>;
   /** Query string params (GET, etc.). */
@@ -141,6 +141,32 @@ export class FuulApiClient {
       bearerToken: options?.bearerToken,
     });
     throwIfNotSuccess(res);
+    return res.data;
+  }
+
+  async putJson(url: string, body: unknown, options?: { bearerToken?: string }): Promise<unknown> {
+    const res = await this.executeAuthorizedRequest<unknown>({
+      method: 'PUT',
+      url,
+      data: body,
+      bearerToken: options?.bearerToken,
+    });
+    throwIfNotSuccess(res);
+    return res.data;
+  }
+
+  async deleteJson(url: string, options?: { bearerToken?: string; query?: Record<string, unknown>; data?: unknown }): Promise<unknown> {
+    const res = await this.executeAuthorizedRequest<unknown>({
+      method: 'DELETE',
+      url,
+      params: options?.query,
+      data: options?.data ?? {},
+      bearerToken: options?.bearerToken,
+    });
+    throwIfNotSuccess(res);
+    if (res.status === 204 || res.data == null || res.data === '') {
+      return { status: 'deleted' };
+    }
     return res.data;
   }
 
