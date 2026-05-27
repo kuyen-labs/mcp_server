@@ -106,7 +106,14 @@ export const SEND_EVENT_DESCRIPTION =
   PROJECT_API_KEY_HINT +
   EVENTS_SEND_RATE_LIMIT +
   RATE_LIMIT_HINT +
-  ' Example dry_run: {"name":"trade","user_identifier":"0x...","user_identifier_type":"evm_address","dedup_id":"uuid-here","dry_run":true}.';
+  '\n\n**args shape for value/revenue:** For non-tracking events (swaps, deposits), args can include `value` and/or `revenue`, each as `{ amount: string, currency: {...} }`. ' +
+  '`amount` is a string integer in the smallest unit (e.g. "1000000" for 1 USDC with 6 decimals); decimals only for fiat. ' +
+  '`currency` accepts three forms: (1) Official symbol: `{ "name": "USDC" }` or `{ "name": "USD" }` or `{ "name": "POINT" }`, ' +
+  '(2) V2 recommended: `{ "identifier": "0xa0b...", "identifier_type": "evm_contract", "chain_identifier": "evm:1" }`, ' +
+  '(3) V1 legacy EVM: `{ "address": "0xa0b...", "chain_id": 1 }`. ' +
+  '\n\nExample with value/revenue: {"name":"swap","user_identifier":"0x...","user_identifier_type":"evm_address","dedup_id":"swap-123",' +
+  '"args":{"value":{"amount":"1000000","currency":{"name":"USDC"}},"revenue":{"amount":"3000","currency":{"name":"USDC"}}},"dry_run":true}. ' +
+  '\n\nSimple dry_run: {"name":"trade","user_identifier":"0x...","user_identifier_type":"evm_address","dedup_id":"uuid-here","dry_run":true}.';
 
 export const SEND_BATCH_EVENTS_DESCRIPTION =
   'Send up to 100 conversion events: POST /api/v1/events/batch. For backfills and bulk ingestion; processing is atomic (all succeed or all fail). Duplicate dedup_id values are silently ignored; response includes ingested_events count.' +
@@ -114,7 +121,10 @@ export const SEND_BATCH_EVENTS_DESCRIPTION =
   ' dry_run then confirmed.' +
   EVENTS_BATCH_RATE_LIMIT +
   RATE_LIMIT_HINT +
-  ' Example dry_run: {"events":[{"name":"trade","user_identifier":"0x...","user_identifier_type":"evm_address","dedup_id":"id-1"}],"dry_run":true}.';
+  '\n\n**args shape for value/revenue:** Same as send_event — each event in the batch can include `args.value` and/or `args.revenue` as `{ amount: string, currency: {...} }`. ' +
+  'See send_event description for currency formats and amount encoding. ' +
+  '\n\nExample dry_run: {"events":[{"name":"swap","user_identifier":"0x...","user_identifier_type":"evm_address","dedup_id":"id-1",' +
+  '"args":{"value":{"amount":"5000000000","currency":{"identifier":"0xa0b...","identifier_type":"evm_contract","chain_identifier":"evm:1"}}}}],"dry_run":true}.';
 
 export const CHECK_EVENT_STATUS_DESCRIPTION =
   'Check if an event exists for a user: GET /api/v1/events/status. Query: user_identifier, user_identifier_type, event_name (case-sensitive). Returns {"created":true} or {"created":false}.' +

@@ -325,13 +325,61 @@ export type GetProjectAffiliatePublicInput = z.infer<typeof getProjectAffiliateP
 
 const eventArgValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 
+/**
+ * Currency specification for value/revenue in event args.
+ * Three forms accepted:
+ * 1. Official symbol: { name: "USDC" | "USD" | "POINT" | ... }
+ * 2. V2 (recommended): { identifier, identifier_type, chain_identifier }
+ * 3. V1 (legacy EVM): { address, chain_id }
+ */
+const eventArgCurrencySchema = z
+  .union([
+    z.object({ name: z.string().describe('Official currency symbol (e.g. "USDC", "USD", "POINT").') }),
+    z.object({
+      identifier: z.string().describe('Token identifier (e.g. contract address or mint).'),
+      identifier_type: z.string().describe('Type of identifier (e.g. "evm_contract", "solana_mint").'),
+      chain_identifier: z.string().describe('Chain identifier (e.g. "evm:1", "solana:mainnet").'),
+    }),
+    z.object({
+      address: z.string().describe('EVM token contract address (legacy V1 format).'),
+      chain_id: z.coerce.number().int().describe('EVM chain ID (e.g. 1 for Ethereum mainnet).'),
+    }),
+  ])
+  .describe(
+    'Currency in one of three forms: (1) { name: "USDC"|"USD"|"POINT" }, (2) V2: { identifier, identifier_type, chain_identifier }, (3) V1 legacy EVM: { address, chain_id }.',
+  );
+
+/**
+ * Value or revenue amount with currency.
+ * amount is a string integer in the currency's smallest unit (e.g. wei for ETH, cents for fiat).
+ * Decimals only allowed for fiat-type currencies (USD, etc.).
+ */
+const eventArgAmountSchema = z.object({
+  amount: z.string().describe('Amount as string integer in smallest unit (e.g. "1000000" for 1 USDC with 6 decimals). Decimals only for fiat.'),
+  currency: eventArgCurrencySchema,
+});
+
+/**
+ * Event args supporting value and revenue for non-tracking events.
+ * Additional arbitrary key-value pairs are allowed.
+ */
+const eventArgsSchema = z
+  .object({
+    value: eventArgAmountSchema.optional().describe('Transaction value (e.g. swap input amount, deposit amount).'),
+    revenue: eventArgAmountSchema.optional().describe('Revenue generated (e.g. fees earned, commission).'),
+  })
+  .catchall(eventArgValueSchema)
+  .describe(
+    'Event metadata. For non-tracking events (swaps, deposits), include value and/or revenue as { amount: string, currency: {...} }. Additional custom fields allowed.',
+  );
+
 /** Single conversion event payload (Public API SendEventRequest). */
 export const sendEventPayloadSchema = z.object({
   name: z.string().min(1).max(200).describe('Trigger/event name configured in the project.'),
   dedup_id: z.string().min(1).max(200).describe('Unique idempotency key; duplicates return HTTP 409 on single send.'),
   user_identifier: z.string().min(1).describe('User who performed the action.'),
   user_identifier_type: identifierTypeForAffiliateSchema,
-  args: z.record(z.string(), eventArgValueSchema).optional().describe('Optional key-value event metadata.'),
+  args: eventArgsSchema.optional().describe('Event metadata including optional value/revenue. See schema for structure.'),
   timestamp: z.coerce.number().int().nonnegative().optional().describe('Event time in ms since epoch; defaults to server time.'),
 });
 
