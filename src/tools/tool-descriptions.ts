@@ -112,7 +112,7 @@ const EVENTS_BATCH_RATE_LIMIT = ' Rate limit: 10 requests/minute.';
 
 export const SEND_EVENT_DESCRIPTION =
   'Send one conversion event: POST /api/v1/events. Triggers real-time reward attribution. Required: name (trigger name), user_identifier, user_identifier_type, dedup_id. Optional: args, timestamp (ms). ' +
-  'Duplicate dedup_id returns HTTP 409. Use check_event_status before resending. dry_run then confirmed.' +
+  'Duplicate dedup_id returns HTTP 409. After send, use check_event_status with verbose=true (dedup_id + event_name) to verify the pipeline. dry_run then confirmed.' +
   PROJECT_API_KEY_HINT +
   EVENTS_SEND_RATE_LIMIT +
   RATE_LIMIT_HINT +
@@ -136,11 +136,14 @@ export const SEND_BATCH_EVENTS_DESCRIPTION =
   '"args":{"value":{"amount":"5000000000","currency":{"identifier":"0xa0b...","identifier_type":"evm_contract","chain_identifier":"evm:1"}}}}],"dry_run":true}.';
 
 export const CHECK_EVENT_STATUS_DESCRIPTION =
-  'Check if an event exists for a user: GET /api/v1/events/status. Query: user_identifier, user_identifier_type, event_name (case-sensitive). Returns {"created":true} or {"created":false}.' +
+  'Check event ingestion and downstream pipeline. Default (verbose omitted or false): GET /api/v1/events/status with user_identifier, user_identifier_type, event_name → {"created":true|false}. ' +
+  'verbose=true: GET /api/v1/events/pipeline — returns event, trigger_executions (status, status_details), attributions, payouts, movements. ' +
+  'Requires event_id OR dedup_id + event_name (same dedup_id/name as send_event). Poll every 2–5s after send_event until attributions/payouts appear. 404 → {"created":false}.' +
   PROJECT_API_KEY_HINT +
   EVENTS_SEND_RATE_LIMIT +
   RATE_LIMIT_HINT +
-  ' Example: {"user_identifier":"0x...","user_identifier_type":"evm_address","event_name":"trade"}.';
+  ' Example status: {"user_identifier":"0x...","user_identifier_type":"evm_address","event_name":"trade"}. ' +
+  'Example verbose: {"verbose":true,"dedup_id":"swap-123","event_name":"trade"}.';
 
 export const UPDATE_USER_REFERRER_DESCRIPTION =
   'Create or overwrite a user referrer: PUT /api/v1/user-referrers (idempotent upsert). Sets user_referrers for the project inferred from the API key. Optional referral_code links referral_code_id on the row; does not create referral_code_uses or increment actual_uses. Requires project API key with service_role scope.' +

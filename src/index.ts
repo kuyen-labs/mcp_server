@@ -59,6 +59,7 @@ import {
   WHOAMI_DESCRIPTION,
 } from './tools/tool-descriptions.js';
 import {
+  checkEventStatusFieldsSchema,
   checkEventStatusInputSchema,
   createProjectAffiliatePublicFieldsSchema,
   createProjectAffiliatePublicInputSchema,
@@ -371,7 +372,7 @@ async function main(): Promise<void> {
     }
   });
 
-  server.tool('check_event_status', CHECK_EVENT_STATUS_DESCRIPTION, checkEventStatusInputSchema.shape, async (args) => {
+  server.tool('check_event_status', CHECK_EVENT_STATUS_DESCRIPTION, checkEventStatusFieldsSchema.shape, async (args) => {
     try {
       const parsed = checkEventStatusInputSchema.parse(args);
       const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);

@@ -401,10 +401,17 @@ All tools receive JSON arguments. Use real UUIDs from your tenant.
 Requires `FUUL_MCP_PROJECT_API_KEY` or `project_api_key` on each call. Writes use `dry_run` then `confirmed`.
 
 ```json
-// check_event_status
+// check_event_status (ingestion only)
 {
   "user_identifier": "0x80Fe27F878d2d42BD8b387F3cA4b96CBDEc05326",
   "user_identifier_type": "evm_address",
+  "event_name": "trade"
+}
+
+// check_event_status (full pipeline after send_event)
+{
+  "verbose": true,
+  "dedup_id": "4bdabf2c-271a-4d66-afd0-a9f24119810a",
   "event_name": "trade"
 }
 

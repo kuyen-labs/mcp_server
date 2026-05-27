@@ -343,9 +343,7 @@ const eventArgCurrencySchema = z
       chain_identifier: z.string().describe('Chain identifier (e.g. "evm:1", "solana:mainnet").'),
     }),
   ])
-  .describe(
-    'Currency in one of two forms: (1) { name: "USDC"|"USD"|"POINT" }, (2) { identifier, identifier_type, chain_identifier }.',
-  );
+  .describe('Currency in one of two forms: (1) { name: "USDC"|"USD"|"POINT" }, (2) { identifier, identifier_type, chain_identifier }.');
 
 /**
  * Value or revenue amount with currency.
@@ -401,10 +399,36 @@ export const sendBatchEventsInputSchema = sendBatchEventsFieldsSchema;
 
 export type SendBatchEventsInput = z.infer<typeof sendBatchEventsInputSchema>;
 
-export const checkEventStatusInputSchema = projectApiKeyBearerFieldsSchema.extend({
-  user_identifier: z.string().min(1),
-  user_identifier_type: identifierTypeForAffiliateSchema,
-  event_name: z.string().min(1).describe('Case-sensitive trigger name.'),
+export const checkEventStatusFieldsSchema = projectApiKeyBearerFieldsSchema.extend({
+  verbose: z.boolean().optional().describe('When true, returns full downstream pipeline (trigger executions, attributions, payouts, movements).'),
+  user_identifier: z.string().min(1).optional(),
+  user_identifier_type: identifierTypeForAffiliateSchema.optional(),
+  event_name: z.string().min(1).optional().describe('Case-sensitive trigger name.'),
+  event_id: z.string().uuid().optional().describe('Event UUID. Use with verbose instead of dedup_id + event_name.'),
+  dedup_id: z.string().min(1).optional().describe('Dedup id from send_event. Required with event_name when verbose and event_id omitted.'),
+});
+
+export const checkEventStatusInputSchema = checkEventStatusFieldsSchema.superRefine((value, ctx) => {
+  if (value.verbose === true) {
+    if (value.event_id) {
+      return;
+    }
+    if (value.dedup_id && value.event_name) {
+      return;
+    }
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'verbose=true requires event_id or both dedup_id and event_name',
+    });
+    return;
+  }
+
+  if (!value.user_identifier || !value.user_identifier_type || !value.event_name) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'user_identifier, user_identifier_type, and event_name are required when verbose is not true',
+    });
+  }
 });
 
 export type CheckEventStatusInput = z.infer<typeof checkEventStatusInputSchema>;

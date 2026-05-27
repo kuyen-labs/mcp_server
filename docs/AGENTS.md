@@ -24,7 +24,7 @@ Single map for tools ↔ HTTP, env, and write conventions. Documentation index: 
 | `update_project_affiliate_public` | `PATCH /api/v1/project-affiliates/:projectAffiliateId` | Project API key Bearer + dry_run / confirmed |
 | `send_event` | `POST /api/v1/events` | Project API key Bearer + dry_run / confirmed |
 | `send_batch_events` | `POST /api/v1/events/batch` | Project API key Bearer + dry_run / confirmed |
-| `check_event_status` | `GET /api/v1/events/status` | Project API key Bearer |
+| `check_event_status` | `GET /api/v1/events/status` (default) or `GET /api/v1/events/pipeline` when `verbose=true` | Project API key Bearer |
 | `update_user_referrer` | `PUT /api/v1/user-referrers` | Project API key Bearer (`service_role`) + dry_run / confirmed |
 | `remove_user_from_referral_code` | `DELETE /api/v1/referral_codes/:code/referrals` | Project API key Bearer (`service_role`) + dry_run / confirmed |
 | `swap_user_referral_code` | DELETE + PUT (composed) | Project API key Bearer (`service_role`) + dry_run / confirmed |
