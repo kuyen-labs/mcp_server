@@ -194,6 +194,9 @@ export type GetProjectAffiliatesBreakdownInput = z.infer<typeof getProjectAffili
 
 const identifierTypeForAffiliateSchema = z.enum(['evm_address', 'solana_address', 'sui_address', 'xrpl_address', 'email']);
 
+/** Matches CreateOrUpdateUserReferrerDto / DeleteReferralQueryDto IdentifierType on fuul-server. */
+export const identifierTypeForReferrerSchema = z.enum(['evm_address', 'solana_address', 'sui_address', 'xrpl_address', 'email', 'uuid']);
+
 export const projectApiKeyBearerFieldsSchema = z.object({
   project_api_key: z
     .string()
@@ -362,3 +365,54 @@ export const checkEventStatusInputSchema = projectApiKeyBearerFieldsSchema.exten
 });
 
 export type CheckEventStatusInput = z.infer<typeof checkEventStatusInputSchema>;
+
+export const updateUserReferrerFieldsSchema = projectApiKeyBearerFieldsSchema.merge(writeConfirmationFieldsSchema).extend({
+  user_identifier: z.string().min(1),
+  user_identifier_type: identifierTypeForReferrerSchema,
+  referrer_identifier: z.string().min(1),
+  referrer_identifier_type: identifierTypeForReferrerSchema,
+  referral_code: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Optional referral code string; links referral_code_id on user_referrers. Does not create referral_code_uses.'),
+});
+
+export const updateUserReferrerInputSchema = updateUserReferrerFieldsSchema;
+
+export type UpdateUserReferrerInput = z.infer<typeof updateUserReferrerInputSchema>;
+
+export const removeUserFromReferralCodeFieldsSchema = projectApiKeyBearerFieldsSchema.merge(writeConfirmationFieldsSchema).extend({
+  referral_code: z.string().min(1).describe('Referral code the user used (path segment).'),
+  user_identifier: z.string().min(1),
+  user_identifier_type: identifierTypeForReferrerSchema,
+  referrer_identifier: z.string().min(1).describe('Owner of the referral code.'),
+  referrer_identifier_type: identifierTypeForReferrerSchema,
+});
+
+export const removeUserFromReferralCodeInputSchema = removeUserFromReferralCodeFieldsSchema;
+
+export type RemoveUserFromReferralCodeInput = z.infer<typeof removeUserFromReferralCodeInputSchema>;
+
+export const swapUserReferralCodeFieldsSchema = projectApiKeyBearerFieldsSchema.merge(writeConfirmationFieldsSchema).extend({
+  user_identifier: z.string().min(1),
+  user_identifier_type: identifierTypeForReferrerSchema,
+  from_referral_code: z.string().min(1),
+  from_referrer_identifier: z.string().min(1),
+  from_referrer_identifier_type: identifierTypeForReferrerSchema,
+  to_referrer_identifier: z.string().min(1),
+  to_referrer_identifier_type: identifierTypeForReferrerSchema,
+  to_referral_code: z.string().min(1).optional(),
+});
+
+export const swapUserReferralCodeInputSchema = swapUserReferralCodeFieldsSchema.superRefine((val, ctx) => {
+  if (val.to_referral_code != null && val.to_referral_code !== '' && val.from_referral_code === val.to_referral_code) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'from_referral_code and to_referral_code must differ when both are set',
+      path: ['to_referral_code'],
+    });
+  }
+});
+
+export type SwapUserReferralCodeInput = z.infer<typeof swapUserReferralCodeInputSchema>;
