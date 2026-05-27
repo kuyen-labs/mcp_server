@@ -17,6 +17,11 @@ import { MissingProjectApiKeyError, resolveProjectApiKeyBearer } from './http/pr
 import { MetadataService } from './metadata/metadata-service.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import {
+  runRemoveUserFromReferralCode,
+  runSwapUserReferralCode,
+  runUpdateUserReferrer,
+} from './referral-attribution/referral-attribution-handlers.js';
+import {
   APPROVE_PAYOUTS_DESCRIPTION,
   CHECK_EVENT_STATUS_DESCRIPTION,
   CREATE_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
@@ -36,13 +41,16 @@ import {
   LIST_TRIGGER_TYPES_DESCRIPTION,
   PING_DESCRIPTION,
   REJECT_PAYOUTS_DESCRIPTION,
+  REMOVE_USER_FROM_REFERRAL_CODE_DESCRIPTION,
   SEND_BATCH_EVENTS_DESCRIPTION,
   SEND_EVENT_DESCRIPTION,
+  SWAP_USER_REFERRAL_CODE_DESCRIPTION,
   UPDATE_AUDIENCE_DESCRIPTION,
   UPDATE_PAYOUT_TERM_DESCRIPTION,
   UPDATE_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
   UPDATE_PROJECT_TIER_DESCRIPTION,
   UPDATE_TRIGGER_DESCRIPTION,
+  UPDATE_USER_REFERRER_DESCRIPTION,
   WHOAMI_DESCRIPTION,
 } from './tools/tool-descriptions.js';
 import {
@@ -60,10 +68,14 @@ import {
   listRewardsPayoutsSchema,
   payoutBatchActionInputSchema,
   projectIdParamSchema,
+  removeUserFromReferralCodeFieldsSchema,
+  removeUserFromReferralCodeInputSchema,
   sendBatchEventsFieldsSchema,
   sendBatchEventsInputSchema,
   sendEventFieldsSchema,
   sendEventInputSchema,
+  swapUserReferralCodeFieldsSchema,
+  swapUserReferralCodeInputSchema,
   updateAudienceFieldsSchema,
   updateAudienceInputSchema,
   updatePayoutTermInputSchema,
@@ -73,6 +85,8 @@ import {
   updateProjectTierInputSchema,
   updateTriggerFieldsSchema,
   updateTriggerInputSchema,
+  updateUserReferrerFieldsSchema,
+  updateUserReferrerInputSchema,
 } from './tools/tool-schemas.js';
 import { compactQuery } from './util/compact-query.js';
 import { ToolTimeoutError, withTimeout } from './util/with-timeout.js';
@@ -360,6 +374,44 @@ async function main(): Promise<void> {
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to check event status');
+    }
+  });
+
+  server.tool('update_user_referrer', UPDATE_USER_REFERRER_DESCRIPTION, updateUserReferrerFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = updateUserReferrerInputSchema.parse(args);
+      const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);
+      const data = await withTimeout(runUpdateUserReferrer(api, bearer, parsed), toolTimeoutMs, 'update_user_referrer');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to update user referrer');
+    }
+  });
+
+  server.tool(
+    'remove_user_from_referral_code',
+    REMOVE_USER_FROM_REFERRAL_CODE_DESCRIPTION,
+    removeUserFromReferralCodeFieldsSchema.shape,
+    async (args) => {
+      try {
+        const parsed = removeUserFromReferralCodeInputSchema.parse(args);
+        const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);
+        const data = await withTimeout(runRemoveUserFromReferralCode(api, bearer, parsed), toolTimeoutMs, 'remove_user_from_referral_code');
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      } catch (e) {
+        return toolErrorPayload(e, 'Failed to remove user from referral code');
+      }
+    },
+  );
+
+  server.tool('swap_user_referral_code', SWAP_USER_REFERRAL_CODE_DESCRIPTION, swapUserReferralCodeFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = swapUserReferralCodeInputSchema.parse(args);
+      const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);
+      const data = await withTimeout(runSwapUserReferralCode(api, bearer, parsed), toolTimeoutMs, 'swap_user_referral_code');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to swap user referral code');
     }
   });
 

@@ -131,3 +131,18 @@ export const CHECK_EVENT_STATUS_DESCRIPTION =
   EVENTS_SEND_RATE_LIMIT +
   RATE_LIMIT_HINT +
   ' Example: {"user_identifier":"0x...","user_identifier_type":"evm_address","event_name":"trade"}.';
+
+export const UPDATE_USER_REFERRER_DESCRIPTION =
+  'Create or overwrite a user referrer: PUT /api/v1/user-referrers (idempotent upsert). Sets user_referrers for the project inferred from the API key. Optional referral_code links referral_code_id on the row; does not create referral_code_uses or increment actual_uses. Requires project API key with service_role scope.' +
+  PROJECT_API_KEY_HINT +
+  ' dry_run then confirmed. Example dry_run (reassign KOL, no code): {"user_identifier":"0xUser...","user_identifier_type":"evm_address","referrer_identifier":"0xNewKol...","referrer_identifier_type":"evm_address","dry_run":true}. Example with code: add "referral_code":"PROMO2024".';
+
+export const REMOVE_USER_FROM_REFERRAL_CODE_DESCRIPTION =
+  'Remove a user from a referral code: DELETE /api/v1/referral_codes/:code/referrals. Atomically deletes user_referrers + referral_code_uses and decrements actual_uses. Not idempotent on the API; this tool maps known 422 cases to {"already_removed":true,"reason":"..."} for safe retries. Requires service_role project API key (no wallet signature).' +
+  PROJECT_API_KEY_HINT +
+  ' dry_run then confirmed. Example dry_run: {"referral_code":"PROMO2024","user_identifier":"0xUser...","user_identifier_type":"evm_address","referrer_identifier":"0xKol...","referrer_identifier_type":"evm_address","dry_run":true}.';
+
+export const SWAP_USER_REFERRAL_CODE_DESCRIPTION =
+  'Swap a user from one referral code to another referrer/code: DELETE from from_referral_code then PUT /api/v1/user-referrers (not a single atomic API transaction). Step 1 tolerates already-removed 422s. If PUT fails after DELETE, response includes partial:true with remove result and assign_error. Requires service_role project API key.' +
+  PROJECT_API_KEY_HINT +
+  ' dry_run then confirmed. Example dry_run: {"user_identifier":"0xUser...","user_identifier_type":"evm_address","from_referral_code":"OLD","from_referrer_identifier":"0xOldKol...","from_referrer_identifier_type":"evm_address","to_referrer_identifier":"0xNewKol...","to_referrer_identifier_type":"evm_address","to_referral_code":"NEW","dry_run":true}.';
