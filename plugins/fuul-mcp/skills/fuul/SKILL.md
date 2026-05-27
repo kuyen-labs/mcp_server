@@ -94,9 +94,9 @@ For `create_incentive_program`, `update_incentive_program`, `approve_payouts`, `
 
 - **`send_event`**: one real-time conversion event. Required: `name`, `user_identifier`, `user_identifier_type`, `dedup_id`. Optional: `args`, `timestamp`. Duplicate `dedup_id` → HTTP 409. Rate limit 100/min.
 - **`send_batch_events`**: up to 100 events; atomic batch. Duplicate `dedup_id` values are skipped silently; response includes `ingested_events`. Rate limit 10/min.
-- **`check_event_status`**: `GET` with `user_identifier`, `user_identifier_type`, `event_name` (case-sensitive) → `{ "created": true|false }`.
+- **`check_event_status`**: default → `GET /api/v1/events/status` with `user_identifier`, `user_identifier_type`, `event_name` → `{ "created": true|false }`. **`verbose: true`** → `GET /api/v1/events/pipeline` with `event_id` **or** `dedup_id` + `event_name` (same as `send_event`); returns trigger executions, attributions, payouts, movements, and `status_details` per stage. Poll every 2–5s after `send_event` until the pipeline completes. `404` → `{ "created": false }`.
 
-Use `check_event_status` before resending to avoid 409 on single send.
+Use `check_event_status` before resending to avoid 409 on single send. After a successful `send_event`, use `verbose: true` with the same `dedup_id` and `name` to verify rewards.
 
 ## Affiliate analytics
 

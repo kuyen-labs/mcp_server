@@ -1,5 +1,5 @@
 import { assertWriteConfirmedOrDryRun } from '../agent/write-confirmation.js';
-import type { FuulApiClient } from '../http/fuul-api-client.js';
+import { ApiRequestError, type FuulApiClient } from '../http/fuul-api-client.js';
 import type { CheckEventStatusInput, SendBatchEventsInput, SendEventInput, SendEventPayload } from '../tools/tool-schemas.js';
 
 export function buildSendEventBody(fields: SendEventPayload): Record<string, unknown> {
@@ -45,13 +45,41 @@ export async function runSendBatchEvents(api: FuulApiClient, bearer: string, inp
   return api.postJson(path, body, { bearerToken: bearer });
 }
 
+function buildEventPipelineQuery(input: CheckEventStatusInput): Record<string, string> {
+  const query: Record<string, string> = {};
+  if (input.event_id) {
+    query.event_id = input.event_id;
+  }
+  if (input.dedup_id) {
+    query.dedup_id = input.dedup_id;
+  }
+  if (input.event_name) {
+    query.event_name = input.event_name;
+  }
+  return query;
+}
+
 export async function runCheckEventStatus(api: FuulApiClient, bearer: string, input: CheckEventStatusInput): Promise<unknown> {
+  if (input.verbose === true) {
+    try {
+      return await api.getJson('/api/v1/events/pipeline', {
+        bearerToken: bearer,
+        query: buildEventPipelineQuery(input),
+      });
+    } catch (error: unknown) {
+      if (error instanceof ApiRequestError && error.status === 404) {
+        return { created: false };
+      }
+      throw error;
+    }
+  }
+
   return api.getJson('/api/v1/events/status', {
     bearerToken: bearer,
     query: {
-      user_identifier: input.user_identifier,
-      user_identifier_type: input.user_identifier_type,
-      event_name: input.event_name,
+      user_identifier: input.user_identifier!,
+      user_identifier_type: input.user_identifier_type!,
+      event_name: input.event_name!,
     },
   });
 }

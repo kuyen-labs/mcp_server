@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { WriteNotConfirmedError } from '../agent/write-confirmation.js';
-import { buildSendEventBody, runSendBatchEvents, runSendEvent } from './events-handlers.js';
+import { ApiRequestError } from '../http/fuul-api-client.js';
+import { buildSendEventBody, runCheckEventStatus, runSendBatchEvents, runSendEvent } from './events-handlers.js';
 
 describe('buildSendEventBody', () => {
   it('maps flat fields to Public API shape', () => {
@@ -75,6 +76,48 @@ describe('runSendEvent', () => {
         user_identifier_type: 'evm_address',
       }),
     ).rejects.toBeInstanceOf(WriteNotConfirmedError);
+  });
+});
+
+describe('runCheckEventStatus', () => {
+  it('calls status endpoint when verbose is not set', async () => {
+    const getJson = vi.fn().mockResolvedValue({ created: true });
+    const result = await runCheckEventStatus({ getJson } as never, 'test-key', {
+      user_identifier: '0x1',
+      user_identifier_type: 'evm_address',
+      event_name: 'trade',
+    });
+    expect(getJson).toHaveBeenCalledWith('/api/v1/events/status', {
+      bearerToken: 'test-key',
+      query: {
+        user_identifier: '0x1',
+        user_identifier_type: 'evm_address',
+        event_name: 'trade',
+      },
+    });
+    expect(result).toEqual({ created: true });
+  });
+
+  it('calls pipeline endpoint when verbose is true', async () => {
+    const getJson = vi.fn().mockResolvedValue({ created: true, event: { id: 'e1' } });
+    await runCheckEventStatus({ getJson } as never, 'test-key', {
+      verbose: true,
+      dedup_id: 'dedup-1',
+      event_name: 'trade',
+    });
+    expect(getJson).toHaveBeenCalledWith('/api/v1/events/pipeline', {
+      bearerToken: 'test-key',
+      query: { dedup_id: 'dedup-1', event_name: 'trade' },
+    });
+  });
+
+  it('maps pipeline 404 to created false', async () => {
+    const getJson = vi.fn().mockRejectedValue(new ApiRequestError('Not found', 404));
+    const result = await runCheckEventStatus({ getJson } as never, 'test-key', {
+      verbose: true,
+      event_id: '00000000-0000-4000-8000-000000000001',
+    });
+    expect(result).toEqual({ created: false });
   });
 });
 
