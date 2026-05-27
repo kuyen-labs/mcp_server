@@ -315,6 +315,7 @@ FUUL_MCP_DEBUG=1
 | **Affiliate Analytics** | `get_affiliate_portal_stats`, `get_project_affiliate_total_stats`, `get_project_affiliates_breakdown` |
 | **Managed Affiliates** (project API key) | `get_project_affiliate_public`, `create_project_affiliate_public`, `update_project_affiliate_public` |
 | **Events** (project API key) | `send_event`, `send_batch_events`, `check_event_status` |
+| **Referrer / referral codes** (`service_role` project API key) | `update_user_referrer`, `remove_user_from_referral_code`, `swap_user_referral_code` |
 | **Payouts (Read)** | `list_payouts_pending_approval`, `list_rewards_payouts` |
 | **Payouts (Write)** | `approve_payouts`, `reject_payouts` |
 | **Tiers** | `update_project_tier` |
