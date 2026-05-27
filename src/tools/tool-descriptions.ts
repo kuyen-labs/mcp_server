@@ -108,9 +108,8 @@ export const SEND_EVENT_DESCRIPTION =
   RATE_LIMIT_HINT +
   '\n\n**args shape for value/revenue:** For non-tracking events (swaps, deposits), args can include `value` and/or `revenue`, each as `{ amount: string, currency: {...} }`. ' +
   '`amount` is a string integer in the smallest unit (e.g. "1000000" for 1 USDC with 6 decimals); decimals only for fiat. ' +
-  '`currency` accepts three forms: (1) Official symbol: `{ "name": "USDC" }` or `{ "name": "USD" }` or `{ "name": "POINT" }`, ' +
-  '(2) V2 recommended: `{ "identifier": "0xa0b...", "identifier_type": "evm_contract", "chain_identifier": "evm:1" }`, ' +
-  '(3) V1 legacy EVM: `{ "address": "0xa0b...", "chain_id": 1 }`. ' +
+  '`currency` accepts two forms: (1) Official symbol: `{ "name": "USDC" }` or `{ "name": "USD" }` or `{ "name": "POINT" }`, ' +
+  '(2) Token identifier: `{ "identifier": "0xa0b...", "identifier_type": "evm_contract", "chain_identifier": "evm:1" }`. ' +
   '\n\nExample with value/revenue: {"name":"swap","user_identifier":"0x...","user_identifier_type":"evm_address","dedup_id":"swap-123",' +
   '"args":{"value":{"amount":"1000000","currency":{"name":"USDC"}},"revenue":{"amount":"3000","currency":{"name":"USDC"}}},"dry_run":true}. ' +
   '\n\nSimple dry_run: {"name":"trade","user_identifier":"0x...","user_identifier_type":"evm_address","dedup_id":"uuid-here","dry_run":true}.';

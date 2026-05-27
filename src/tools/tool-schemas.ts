@@ -327,10 +327,9 @@ const eventArgValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 
 /**
  * Currency specification for value/revenue in event args.
- * Three forms accepted:
+ * Two forms accepted:
  * 1. Official symbol: { name: "USDC" | "USD" | "POINT" | ... }
- * 2. V2 (recommended): { identifier, identifier_type, chain_identifier }
- * 3. V1 (legacy EVM): { address, chain_id }
+ * 2. Token identifier: { identifier, identifier_type, chain_identifier }
  */
 const eventArgCurrencySchema = z
   .union([
@@ -340,13 +339,9 @@ const eventArgCurrencySchema = z
       identifier_type: z.string().describe('Type of identifier (e.g. "evm_contract", "solana_mint").'),
       chain_identifier: z.string().describe('Chain identifier (e.g. "evm:1", "solana:mainnet").'),
     }),
-    z.object({
-      address: z.string().describe('EVM token contract address (legacy V1 format).'),
-      chain_id: z.coerce.number().int().describe('EVM chain ID (e.g. 1 for Ethereum mainnet).'),
-    }),
   ])
   .describe(
-    'Currency in one of three forms: (1) { name: "USDC"|"USD"|"POINT" }, (2) V2: { identifier, identifier_type, chain_identifier }, (3) V1 legacy EVM: { address, chain_id }.',
+    'Currency in one of two forms: (1) { name: "USDC"|"USD"|"POINT" }, (2) { identifier, identifier_type, chain_identifier }.',
   );
 
 /**
