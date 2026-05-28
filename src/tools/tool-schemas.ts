@@ -117,6 +117,66 @@ export const updateTriggerInputSchema = updateTriggerFieldsSchema.refine(
 
 export type UpdateTriggerInput = z.infer<typeof updateTriggerInputSchema>;
 
+/** POST body matches fuul-server CreateTriggerDto (same shape as fuul-webapp triggersService.create). */
+export const createTriggerFieldsSchema = writeConfirmationFieldsSchema.extend({
+  project_id: uuid,
+  trigger: z
+    .record(z.string(), z.unknown())
+    .describe(
+      'Full create payload: name, description (required), optional type, context, expressions, contract_ids, etc. ' +
+        'For token-holder: type "token-holder", context { token_address, chain_id, volume_currency_expression }.',
+    ),
+});
+
+export const createTriggerInputSchema = createTriggerFieldsSchema.superRefine((v, ctx) => {
+  const name = v.trigger.name;
+  if (typeof name !== 'string' || name.trim().length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'trigger.name is required (non-empty string)', path: ['trigger', 'name'] });
+  }
+  const description = v.trigger.description;
+  if (typeof description !== 'string' || description.trim().length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'trigger.description is required (non-empty string)',
+      path: ['trigger', 'description'],
+    });
+  }
+});
+
+export type CreateTriggerInput = z.infer<typeof createTriggerInputSchema>;
+
+export const deleteTriggerFieldsSchema = writeConfirmationFieldsSchema.extend({
+  project_id: uuid,
+  trigger_id: uuid.describe('Draft trigger UUID (draft_trigger_id from get_project or get_incentive triggers[]).'),
+});
+
+export const deleteTriggerInputSchema = deleteTriggerFieldsSchema;
+
+export type DeleteTriggerInput = z.infer<typeof deleteTriggerInputSchema>;
+
+export const createIncentiveFieldsSchema = writeConfirmationFieldsSchema.extend({
+  project_id: uuid,
+  name: z.string().min(1),
+  trigger_ids: z.array(uuid).min(1).describe('Draft trigger UUIDs that activate this incentive.'),
+  payout_terms: z
+    .array(payoutTermSchema)
+    .min(1)
+    .describe('Payout term objects (same shape as get_incentive payout_terms / webapp CreateIncentiveDTO).'),
+});
+
+export const createIncentiveInputSchema = createIncentiveFieldsSchema;
+
+export type CreateIncentiveInput = z.infer<typeof createIncentiveInputSchema>;
+
+export const deleteIncentiveFieldsSchema = writeConfirmationFieldsSchema.extend({
+  project_id: uuid,
+  conversion_id: uuid.describe('Draft incentive UUID (draft_conversion_id from list_incentives).'),
+});
+
+export const deleteIncentiveInputSchema = deleteIncentiveFieldsSchema;
+
+export type DeleteIncentiveInput = z.infer<typeof deleteIncentiveInputSchema>;
+
 export const listPayoutsPendingApprovalSchema = z.object({
   project_id: uuid,
   page: z.coerce.number().int().positive().optional().describe('Forwarded as ?page='),

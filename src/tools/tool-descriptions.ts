@@ -55,8 +55,30 @@ export const UPDATE_AUDIENCE_DESCRIPTION =
   'Updates an audience (user list): PATCH /api/v1/projects/:projectId/audiences/:audienceId. Body matches CreateOrUpdateAudienceDto: name (required), optional conditions[] (signature + parameters), condition_match_mode "any"|"all" (required if conditions non-empty), contractId. ' +
   'dry_run then confirmed. Example dry_run: {"project_id":"<uuid>","audience_id":"<uuid>","name":"VIP","dry_run":true}.';
 
+export const CREATE_TRIGGER_DESCRIPTION =
+  'Creates a draft trigger: POST /api/v1/projects/:projectId/triggers. Body matches CreateTriggerDto (same as fuul-webapp triggersService.create). ' +
+  'Call list_trigger_types and list_chains first; ask the user for trigger type, then only type-specific fields. ' +
+  'Token-holder example: {"name":"Hold CRV","description":"Daily holding of CRV on Ethereum","type":"token-holder","context":{"token_address":"0x...","chain_id":1,"volume_currency_expression":"0x..."}}. ' +
+  'dry_run then confirmed. Use draft_trigger_id from the response (or get_project) for incentives.';
+
+export const DELETE_TRIGGER_DESCRIPTION =
+  'Deletes a draft trigger: DELETE /api/v1/projects/:projectId/triggers/:triggerId. Use draft_trigger_id from get_project. ' +
+  'Requires dry_run then confirmed. Never call without explicit user approval. ' +
+  'If HTTP 422 (trigger used in conversions): delete linked incentives first with delete_incentive, or create a replacement with create_trigger. ' +
+  'To change token_address on a token-holder trigger, do NOT use update_trigger — use this delete+create flow or create_trigger only.';
+
+export const CREATE_INCENTIVE_DESCRIPTION =
+  'Creates a draft incentive (conversion): POST /api/v1/projects/:projectId/incentives. Body: name, trigger_ids[], payout_terms[] (same as webapp CreateIncentiveDTO). ' +
+  'Call list_payout_schemas; collect incentive type, recipient, linked triggers, payout currency and amounts before posting. ' +
+  'Payout terms are normalized for variable rewards (referral_amount → referral_amount_percentage) like update_payout_term. dry_run then confirmed.';
+
+export const DELETE_INCENTIVE_DESCRIPTION =
+  'Deletes a draft incentive: DELETE /api/v1/projects/:projectId/incentives/:conversionId. Use draft_conversion_id from list_incentives. ' +
+  'Soft-deletes the conversion and its payout terms. dry_run then confirmed. Required before delete_trigger when the trigger is still linked.';
+
 export const UPDATE_TRIGGER_DESCRIPTION =
   'Updates a trigger: PATCH /api/v1/projects/:projectId/triggers/:triggerId. Partial body matching UpdateTriggerDto (name, description, event_type, expressions, payable, ref, contract_ids as single-element array, etc.). ' +
+  'Does NOT update context fields such as token_address or chain_id — those are set only at create time. To change the tracked token, explain that to the user and offer delete_trigger + create_trigger (with confirmation) or create_trigger alone. ' +
   'At least one patch field required. dry_run then confirmed. Use get_trigger first for current state.';
 
 export const LIST_PAYOUTS_PENDING_APPROVAL_DESCRIPTION =
