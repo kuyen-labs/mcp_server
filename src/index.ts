@@ -23,9 +23,11 @@ import {
 import { normalizePayoutTermBodyForPatch } from './payouts/normalize-payout-term-body.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import {
+  runGetUserReferrer,
   runRemoveUserFromReferralCode,
   runSwapUserReferralCode,
   runUpdateUserReferrer,
+  runUseReferralCode,
 } from './referral-attribution/referral-attribution-handlers.js';
 import {
   APPROVE_PAYOUTS_DESCRIPTION,
@@ -38,6 +40,7 @@ import {
   GET_PROJECT_AFFILIATES_BREAKDOWN_DESCRIPTION,
   GET_PROJECT_DESCRIPTION,
   GET_TRIGGER_DESCRIPTION,
+  GET_USER_REFERRER_DESCRIPTION,
   LIST_CHAINS_DESCRIPTION,
   LIST_INCENTIVES_DESCRIPTION,
   LIST_PAYOUT_SCHEMAS_DESCRIPTION,
@@ -57,6 +60,7 @@ import {
   UPDATE_PROJECT_TIER_DESCRIPTION,
   UPDATE_TRIGGER_DESCRIPTION,
   UPDATE_USER_REFERRER_DESCRIPTION,
+  USE_REFERRAL_CODE_DESCRIPTION,
   WHOAMI_DESCRIPTION,
 } from './tools/tool-descriptions.js';
 import {
@@ -70,6 +74,8 @@ import {
   getProjectAffiliatesBreakdownSchema,
   getProjectAffiliateTotalStatsSchema,
   getTriggerInputSchema,
+  getUserReferrerFieldsSchema,
+  getUserReferrerInputSchema,
   listPayoutsPendingApprovalSchema,
   listProjectsInputSchema,
   listRewardsPayoutsSchema,
@@ -94,6 +100,8 @@ import {
   updateTriggerInputSchema,
   updateUserReferrerFieldsSchema,
   updateUserReferrerInputSchema,
+  useReferralCodeFieldsSchema,
+  useReferralCodeInputSchema,
 } from './tools/tool-schemas.js';
 import { compactQuery } from './util/compact-query.js';
 import { ToolTimeoutError, withTimeout } from './util/with-timeout.js';
@@ -384,6 +392,17 @@ async function main(): Promise<void> {
     }
   });
 
+  server.tool('get_user_referrer', GET_USER_REFERRER_DESCRIPTION, getUserReferrerFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = getUserReferrerInputSchema.parse(args);
+      const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);
+      const data = await withTimeout(runGetUserReferrer(api, bearer, parsed), toolTimeoutMs, 'get_user_referrer');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to get user referrer');
+    }
+  });
+
   server.tool('update_user_referrer', UPDATE_USER_REFERRER_DESCRIPTION, updateUserReferrerFieldsSchema.shape, async (args) => {
     try {
       const parsed = updateUserReferrerInputSchema.parse(args);
@@ -410,6 +429,17 @@ async function main(): Promise<void> {
       }
     },
   );
+
+  server.tool('use_referral_code', USE_REFERRAL_CODE_DESCRIPTION, useReferralCodeFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = useReferralCodeInputSchema.parse(args);
+      const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);
+      const data = await withTimeout(runUseReferralCode(api, bearer, parsed), toolTimeoutMs, 'use_referral_code');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to use referral code');
+    }
+  });
 
   server.tool('swap_user_referral_code', SWAP_USER_REFERRAL_CODE_DESCRIPTION, swapUserReferralCodeFieldsSchema.shape, async (args) => {
     try {

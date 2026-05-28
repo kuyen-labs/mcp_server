@@ -461,15 +461,35 @@ export const removeUserFromReferralCodeInputSchema = removeUserFromReferralCodeF
 
 export type RemoveUserFromReferralCodeInput = z.infer<typeof removeUserFromReferralCodeInputSchema>;
 
+export const getUserReferrerFieldsSchema = projectApiKeyBearerFieldsSchema.extend({
+  user_identifier: z.string().min(1),
+  user_identifier_type: identifierTypeForReferrerSchema,
+});
+
+export const getUserReferrerInputSchema = getUserReferrerFieldsSchema;
+
+export type GetUserReferrerInput = z.infer<typeof getUserReferrerInputSchema>;
+
+export const useReferralCodeFieldsSchema = projectApiKeyBearerFieldsSchema.merge(writeConfirmationFieldsSchema).extend({
+  referral_code: z.string().min(1).describe('Referral code string (path segment). Referrer is inferred from the code owner on the server.'),
+  user_identifier: z.string().min(1),
+  user_identifier_type: identifierTypeForReferrerSchema,
+});
+
+export const useReferralCodeInputSchema = useReferralCodeFieldsSchema;
+
+export type UseReferralCodeInput = z.infer<typeof useReferralCodeInputSchema>;
+
 export const swapUserReferralCodeFieldsSchema = projectApiKeyBearerFieldsSchema.merge(writeConfirmationFieldsSchema).extend({
   user_identifier: z.string().min(1),
   user_identifier_type: identifierTypeForReferrerSchema,
   from_referral_code: z.string().min(1),
-  from_referrer_identifier: z.string().min(1),
+  from_referrer_identifier: z.string().min(1).describe('Wallet of the owner of from_referral_code.'),
   from_referrer_identifier_type: identifierTypeForReferrerSchema,
-  to_referrer_identifier: z.string().min(1),
-  to_referrer_identifier_type: identifierTypeForReferrerSchema,
-  to_referral_code: z.string().min(1).optional(),
+  to_referral_code: z
+    .string()
+    .min(1)
+    .describe('Target referral code. Step 2 PATCH /use assigns the user to this code owner (no separate to_referrer fields).'),
 });
 
 export const swapUserReferralCodeInputSchema = swapUserReferralCodeFieldsSchema.superRefine((val, ctx) => {

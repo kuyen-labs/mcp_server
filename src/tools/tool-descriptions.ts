@@ -147,10 +147,20 @@ export const CHECK_EVENT_STATUS_DESCRIPTION =
   ' Example status: {"user_identifier":"0x...","user_identifier_type":"evm_address","event_name":"trade"}. ' +
   'Example verbose: {"verbose":true,"dedup_id":"swap-123","event_name":"trade"}.';
 
-export const UPDATE_USER_REFERRER_DESCRIPTION =
-  'Create or overwrite a user referrer: PUT /api/v1/user-referrers (idempotent upsert). Sets user_referrers for the project inferred from the API key. Optional referral_code links referral_code_id on the row; does not create referral_code_uses or increment actual_uses. Requires project API key with service_role scope.' +
+export const GET_USER_REFERRER_DESCRIPTION =
+  'Read a user referrer from user_referrers: GET /api/v1/user/referrer?user_identifier=&user_identifier_type=. Returns referrer_identifier, referrer_code, referrer_codes, referrer_name, referrer_user_rebate_rate (null referrer fields when unassigned). Unlike GET /referral_codes/status, this reflects PUT /user-referrers assignments even without referral_code_uses.' +
   PROJECT_API_KEY_HINT +
-  ' dry_run then confirmed. Example dry_run (reassign KOL, no code): {"user_identifier":"0xUser...","user_identifier_type":"evm_address","referrer_identifier":"0xNewKol...","referrer_identifier_type":"evm_address","dry_run":true}. Example with code: add "referral_code":"PROMO2024".';
+  ' Example: {"user_identifier":"0xUser...","user_identifier_type":"evm_address"}.';
+
+export const UPDATE_USER_REFERRER_DESCRIPTION =
+  'Admin override: create or overwrite user_referrers via PUT /api/v1/user-referrers (idempotent upsert). Sets source=project_imported; does NOT create referral_code_uses or increment actual_uses (status may stay referred:false). For real code redemption use use_referral_code instead. Requires service_role project API key.' +
+  PROJECT_API_KEY_HINT +
+  ' dry_run then confirmed. Example dry_run: {"user_identifier":"0xUser...","user_identifier_type":"evm_address","referrer_identifier":"0xKol...","referrer_identifier_type":"evm_address","dry_run":true}.';
+
+export const USE_REFERRAL_CODE_DESCRIPTION =
+  'Redeem a referral code for a user: PATCH /api/v1/referral_codes/:code/use. Creates referral_code_uses, increments actual_uses, sets user_referrers with source=code_redemption (GET /referral_codes/status → referred:true). Referrer is the code owner (do not pass referrer_identifier). Requires user has no existing referrer unless service_role idempotent replay of the same code. No wallet signature with service_role.' +
+  PROJECT_API_KEY_HINT +
+  ' dry_run then confirmed. Example dry_run: {"referral_code":"PROMO2024","user_identifier":"0xUser...","user_identifier_type":"evm_address","dry_run":true}.';
 
 export const REMOVE_USER_FROM_REFERRAL_CODE_DESCRIPTION =
   'Remove a user from a referral code: DELETE /api/v1/referral_codes/:code/referrals. Atomically deletes user_referrers + referral_code_uses and decrements actual_uses. Not idempotent on the API; this tool maps known 422 cases to {"already_removed":true,"reason":"..."} for safe retries. Requires service_role project API key (no wallet signature).' +
@@ -158,6 +168,6 @@ export const REMOVE_USER_FROM_REFERRAL_CODE_DESCRIPTION =
   ' dry_run then confirmed. Example dry_run: {"referral_code":"PROMO2024","user_identifier":"0xUser...","user_identifier_type":"evm_address","referrer_identifier":"0xKol...","referrer_identifier_type":"evm_address","dry_run":true}.';
 
 export const SWAP_USER_REFERRAL_CODE_DESCRIPTION =
-  'Swap a user from one referral code to another referrer/code: DELETE from from_referral_code then PUT /api/v1/user-referrers (not a single atomic API transaction). Step 1 tolerates already-removed 422s. If PUT fails after DELETE, response includes partial:true with remove result and assign_error. Requires service_role project API key.' +
+  'Move a user between referral codes with full redemption semantics: DELETE from from_referral_code then PATCH /api/v1/referral_codes/:to_referral_code/use (not atomic). Step 1 tolerates already-removed 422s (e.g. user never had a prior code). Step 2 assigns to the owner of to_referral_code — there are no to_referrer_* params. If PATCH /use fails after DELETE, response has partial:true with use_error; complete with use_referral_code or update_user_referrer. Legacy PUT-only users (user_referrers without referral_code_use) may block step 2 with "User already has a referrer". For first assign with no prior code, use use_referral_code directly. Requires service_role project API key.' +
   PROJECT_API_KEY_HINT +
-  ' dry_run then confirmed. Example dry_run: {"user_identifier":"0xUser...","user_identifier_type":"evm_address","from_referral_code":"OLD","from_referrer_identifier":"0xOldKol...","from_referrer_identifier_type":"evm_address","to_referrer_identifier":"0xNewKol...","to_referrer_identifier_type":"evm_address","to_referral_code":"NEW","dry_run":true}.';
+  ' dry_run then confirmed. Example dry_run: {"user_identifier":"0xUser...","user_identifier_type":"evm_address","from_referral_code":"OLD","from_referrer_identifier":"0xOldKol...","from_referrer_identifier_type":"evm_address","to_referral_code":"NEW","dry_run":true}.';

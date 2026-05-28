@@ -25,9 +25,11 @@ Single map for tools ↔ HTTP, env, and write conventions. Documentation index: 
 | `send_event` | `POST /api/v1/events` | Project API key Bearer + dry_run / confirmed |
 | `send_batch_events` | `POST /api/v1/events/batch` | Project API key Bearer + dry_run / confirmed |
 | `check_event_status` | `GET /api/v1/events/status` (default) or `GET /api/v1/events/pipeline` when `verbose=true` | Project API key Bearer |
+| `get_user_referrer` | `GET /api/v1/user/referrer` | Project API key Bearer |
 | `update_user_referrer` | `PUT /api/v1/user-referrers` | Project API key Bearer (`service_role`) + dry_run / confirmed |
+| `use_referral_code` | `PATCH /api/v1/referral_codes/:code/use` | Project API key Bearer (`service_role`) + dry_run / confirmed |
 | `remove_user_from_referral_code` | `DELETE /api/v1/referral_codes/:code/referrals` | Project API key Bearer (`service_role`) + dry_run / confirmed |
-| `swap_user_referral_code` | DELETE + PUT (composed) | Project API key Bearer (`service_role`) + dry_run / confirmed |
+| `swap_user_referral_code` | DELETE + PATCH /use (composed) | Project API key Bearer (`service_role`) + dry_run / confirmed |
 | `create_incentive_program` | `POST /api/v1/projects/:projectId/incentives` | Bearer + dry_run / confirmed |
 | `update_incentive_program` | `PATCH /api/v1/projects/:projectId/incentives/:conversionId` | Bearer + dry_run / confirmed |
 | `list_payouts_pending_approval` | `GET .../payouts/pending-approval` | Bearer |
@@ -46,7 +48,7 @@ All mutation tools require **`dry_run: true`** first (validation / preview) then
 
 These tools call fuul-server routes protected by **`ApiKeyMiddleware`**: the Bearer token must be the **project API key** for the target project (same as server-side integrations). The dashboard **`fuul-mcp login` JWT is not accepted** on these paths.
 
-Routes: `/api/v1/project-affiliates/*`, `/api/v1/events/*`, `/api/v1/user-referrers`, `/api/v1/referral_codes/*/referrals`.
+Routes: `/api/v1/project-affiliates/*`, `/api/v1/events/*`, `/api/v1/user/referrer`, `/api/v1/user-referrers`, `/api/v1/referral_codes/*`.
 
 **Referrer tools** require API key scope **`service_role`**. `remove_user_from_referral_code` maps known HTTP 422 “already gone” cases to `{ already_removed: true }` for idempotent agent retries.
 

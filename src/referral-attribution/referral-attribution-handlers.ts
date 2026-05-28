@@ -1,7 +1,13 @@
 import { assertWriteConfirmedOrDryRun } from '../agent/write-confirmation.js';
 import { ApiRequestError, type FuulApiClient } from '../http/fuul-api-client.js';
 import { buildNestQueryString } from '../http/nest-query.js';
-import type { RemoveUserFromReferralCodeInput, SwapUserReferralCodeInput, UpdateUserReferrerInput } from '../tools/tool-schemas.js';
+import type {
+  GetUserReferrerInput,
+  RemoveUserFromReferralCodeInput,
+  SwapUserReferralCodeInput,
+  UpdateUserReferrerInput,
+  UseReferralCodeInput,
+} from '../tools/tool-schemas.js';
 
 const ALREADY_REMOVED_MESSAGES = new Set([
   'User has not used this referral code',
@@ -45,6 +51,38 @@ export function buildDeleteReferralPath(
   return qs ? `/api/v1/referral_codes/${encoded}/referrals?${qs}` : `/api/v1/referral_codes/${encoded}/referrals`;
 }
 
+export function buildUseReferralCodePath(
+  code: string,
+  query: {
+    user_identifier: string;
+    user_identifier_type: string;
+  },
+): string {
+  const qs = buildNestQueryString(query);
+  const encoded = encodeURIComponent(code);
+  return qs ? `/api/v1/referral_codes/${encoded}/use?${qs}` : `/api/v1/referral_codes/${encoded}/use`;
+}
+
+export function buildGetUserReferrerPath(query: { user_identifier: string; user_identifier_type: string }): string {
+  const qs = buildNestQueryString(query);
+  return qs ? `/api/v1/user/referrer?${qs}` : '/api/v1/user/referrer';
+}
+
+function normalizePatchUseResult(data: unknown): { status: 'used' } {
+  if (data === undefined || data === null || data === '') {
+    return { status: 'used' };
+  }
+  return data as { status: 'used' };
+}
+
+export async function runGetUserReferrer(api: FuulApiClient, bearer: string, input: GetUserReferrerInput): Promise<unknown> {
+  const path = buildGetUserReferrerPath({
+    user_identifier: input.user_identifier,
+    user_identifier_type: input.user_identifier_type,
+  });
+  return api.getJson(path, { bearerToken: bearer });
+}
+
 export async function runUpdateUserReferrer(api: FuulApiClient, bearer: string, input: UpdateUserReferrerInput): Promise<unknown> {
   assertWriteConfirmedOrDryRun(input);
   const body = buildUpdateUserReferrerBody(input);
@@ -55,6 +93,21 @@ export async function runUpdateUserReferrer(api: FuulApiClient, bearer: string, 
   }
 
   return api.putJson(path, body, { bearerToken: bearer });
+}
+
+export async function runUseReferralCode(api: FuulApiClient, bearer: string, input: UseReferralCodeInput): Promise<unknown> {
+  assertWriteConfirmedOrDryRun(input);
+  const path = buildUseReferralCodePath(input.referral_code, {
+    user_identifier: input.user_identifier,
+    user_identifier_type: input.user_identifier_type,
+  });
+
+  if (input.dry_run === true) {
+    return { dry_run: true, would_patch: path, body: {} };
+  }
+
+  const data = await api.patchJson(path, {}, { bearerToken: bearer });
+  return normalizePatchUseResult(data);
 }
 
 export async function runRemoveUserFromReferralCode(api: FuulApiClient, bearer: string, input: RemoveUserFromReferralCodeInput): Promise<unknown> {
@@ -90,19 +143,16 @@ export async function runSwapUserReferralCode(api: FuulApiClient, bearer: string
     referrer_identifier_type: input.from_referrer_identifier_type,
   });
 
-  const putBody = buildUpdateUserReferrerBody({
+  const usePath = buildUseReferralCodePath(input.to_referral_code, {
     user_identifier: input.user_identifier,
     user_identifier_type: input.user_identifier_type,
-    referrer_identifier: input.to_referrer_identifier,
-    referrer_identifier_type: input.to_referrer_identifier_type,
-    referral_code: input.to_referral_code,
   });
 
   if (input.dry_run === true) {
     return {
       dry_run: true,
       step1_remove: { would_delete: removePath, body: {} },
-      step2_assign: { would_put: '/api/v1/user-referrers', body: putBody },
+      step2_use: { would_patch: usePath, body: {} },
     };
   }
 
@@ -118,15 +168,15 @@ export async function runSwapUserReferralCode(api: FuulApiClient, bearer: string
   }
 
   try {
-    const putResult = await api.putJson('/api/v1/user-referrers', putBody, { bearerToken: bearer });
-    return { remove: removeResult, assign: putResult };
+    const useResult = normalizePatchUseResult(await api.patchJson(usePath, {}, { bearerToken: bearer }));
+    return { remove: removeResult, use: useResult };
   } catch (e) {
-    const assignError =
+    const useError =
       e instanceof ApiRequestError ? { message: e.message, status: e.status } : { message: e instanceof Error ? e.message : String(e) };
     return {
       partial: true,
       remove: removeResult,
-      assign_error: assignError,
+      use_error: useError,
     };
   }
 }
