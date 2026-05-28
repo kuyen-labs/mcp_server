@@ -42,7 +42,9 @@ export const GET_TRIGGER_DESCRIPTION =
 
 export const UPDATE_PAYOUT_TERM_DESCRIPTION =
   'Updates one payout term on a draft conversion: PATCH /api/v1/projects/:projectId/conversions/:conversionId/payout_terms/:payoutTermId. ' +
-  'Body is a single PayoutTermDto (use get_incentive or GET the payout term, modify, send as payout_term). dry_run then confirmed. ' +
+  'Body is a single PayoutTermDto (use get_incentive, edit fields such as referral_amount / referrer_amount, send as payout_term). ' +
+  'For variable rewards, the server expects referral_amount_percentage / referrer_amount_percentage; this tool maps GET aliases automatically (same as the dashboard). ' +
+  'Per-unit rewards: edit referral_amount and referrer_amount; do not send zero percentages. dry_run shows the normalized body sent to the API. ' +
   'Example dry_run: {"project_id":"<uuid>","conversion_id":"<uuid>","payout_term_id":"<uuid>","payout_term":{...},"dry_run":true}.';
 
 export const UPDATE_PROJECT_TIER_DESCRIPTION =
