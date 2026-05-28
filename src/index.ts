@@ -20,6 +20,7 @@ import {
   loadIncentiveWithMetadataScope,
   loadProjectWithMetadataScope,
 } from './metadata-scope/fetch-project-config.js';
+import { normalizePayoutTermBodyForPatch } from './payouts/normalize-payout-term-body.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import {
   runRemoveUserFromReferralCode,
@@ -482,17 +483,18 @@ async function main(): Promise<void> {
       const parsed = updatePayoutTermInputSchema.parse(args);
       assertWriteConfirmedOrDryRun(parsed);
       const path = `/api/v1/projects/${parsed.project_id}/conversions/${parsed.conversion_id}/payout_terms/${parsed.payout_term_id}`;
+      const patchBody = normalizePayoutTermBodyForPatch(parsed.payout_term as Record<string, unknown>);
       if (parsed.dry_run === true) {
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify({ dry_run: true, would_patch: path, body: parsed.payout_term }, null, 2),
+              text: JSON.stringify({ dry_run: true, would_patch: path, body: patchBody }, null, 2),
             },
           ],
         };
       }
-      const data = await withTimeout(api.patchJson(path, parsed.payout_term), toolTimeoutMs, 'update_payout_term');
+      const data = await withTimeout(api.patchJson(path, patchBody), toolTimeoutMs, 'update_payout_term');
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to update payout term');
