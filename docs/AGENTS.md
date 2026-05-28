@@ -16,6 +16,12 @@ Single map for tools ↔ HTTP, env, and write conventions. Documentation index: 
 | `list_incentives` | `GET .../incentives` + `GET .../customizations` (+ project for triggers) | Bearer |
 | `get_incentive` | `GET .../incentives/:id` + `GET .../customizations` (+ project) | Bearer |
 | `get_trigger` | `GET .../triggers/:triggerId` (single row; no scope merge) | Bearer |
+| `create_trigger` | `POST .../triggers` | Bearer + dry_run / confirmed |
+| `delete_trigger` | `DELETE .../triggers/:triggerId` | Bearer + dry_run / confirmed |
+| `update_trigger` | `PATCH .../triggers/:triggerId` | Bearer + dry_run / confirmed |
+| `create_incentive` | `POST .../incentives` | Bearer + dry_run / confirmed |
+| `delete_incentive` | `DELETE .../incentives/:conversionId` | Bearer + dry_run / confirmed |
+| `update_payout_term` | `PATCH .../conversions/:conversionId/payout_terms/:payoutTermId` | Bearer + dry_run / confirmed |
 | `get_affiliate_portal_stats` | `GET /api/v1/projects/:projectId/affiliate-portal/stats` | Bearer |
 | `get_project_affiliate_total_stats` | `GET /api/v1/projects/:projectId/affiliate-portal/total-stats` | Bearer |
 | `get_project_affiliates_breakdown` | `GET /api/v1/projects/:projectId/affiliate-portal/global-breakdown` | Bearer |
@@ -30,8 +36,6 @@ Single map for tools ↔ HTTP, env, and write conventions. Documentation index: 
 | `use_referral_code` | `PATCH /api/v1/referral_codes/:code/use` | Project API key Bearer (`service_role`) + dry_run / confirmed |
 | `remove_user_from_referral_code` | `DELETE /api/v1/referral_codes/:code/referrals` | Project API key Bearer (`service_role`) + dry_run / confirmed |
 | `swap_user_referral_code` | DELETE + PATCH /use (composed) | Project API key Bearer (`service_role`) + dry_run / confirmed |
-| `create_incentive_program` | `POST /api/v1/projects/:projectId/incentives` | Bearer + dry_run / confirmed |
-| `update_incentive_program` | `PATCH /api/v1/projects/:projectId/incentives/:conversionId` | Bearer + dry_run / confirmed |
 | `list_payouts_pending_approval` | `GET .../payouts/pending-approval` | Bearer |
 | `list_rewards_payouts` | `GET .../payouts/rewards-payouts` | Bearer |
 | `approve_payouts` | `PATCH .../payouts/approve` | Bearer + dry_run / confirmed |
@@ -41,8 +45,9 @@ CLI (`login`, `whoami`, `logout`) shares the same API origin and token file.
 
 ## Writes
 
-All mutation tools require **`dry_run: true`** first (validation / preview) then **`confirmed: true`** to execute. Implementation: `src/agent/write-confirmation.ts`.  
-`create_incentive_program` / `update_incentive_program` also enforce **trigger `schema_status === "present"`** from `list_trigger_types` (Phase 1 metadata policy).
+All mutation tools require **`dry_run: true`** first (validation / preview) then **`confirmed: true`** to execute. Implementation: `src/agent/write-confirmation.ts`.
+
+**Trigger token changes:** `context.token_address` (and similar) are set only at **create** time. To change a token-holder token, use `create_trigger` and optionally `delete_trigger` after user confirmation — not `update_trigger`. If `delete_trigger` returns HTTP 422, delete linked incentives with `delete_incentive` first, or create a new trigger without deleting the old one.
 
 ## Project API key tools (public / service routes)
 
