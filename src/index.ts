@@ -25,6 +25,7 @@ import {
 import { normalizePayoutTermBodyForPatch } from './payouts/normalize-payout-term-body.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import {
+  runDeleteUserReferrer,
   runGetUserReferrer,
   runRemoveUserFromReferralCode,
   runSwapUserReferralCode,
@@ -39,6 +40,7 @@ import {
   CREATE_TRIGGER_DESCRIPTION,
   DELETE_INCENTIVE_DESCRIPTION,
   DELETE_TRIGGER_DESCRIPTION,
+  DELETE_USER_REFERRER_DESCRIPTION,
   GET_AFFILIATE_PORTAL_STATS_DESCRIPTION,
   GET_INCENTIVE_DESCRIPTION,
   GET_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
@@ -82,6 +84,8 @@ import {
   deleteIncentiveInputSchema,
   deleteTriggerFieldsSchema,
   deleteTriggerInputSchema,
+  deleteUserReferrerFieldsSchema,
+  deleteUserReferrerInputSchema,
   getAffiliatePortalStatsSchema,
   getIncentiveInputSchema,
   getProjectAffiliatePublicInputSchema,
@@ -469,6 +473,17 @@ async function main(): Promise<void> {
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to update user referrer');
+    }
+  });
+
+  server.tool('delete_user_referrer', DELETE_USER_REFERRER_DESCRIPTION, deleteUserReferrerFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = deleteUserReferrerInputSchema.parse(args);
+      const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);
+      const data = await withTimeout(runDeleteUserReferrer(api, bearer, parsed), toolTimeoutMs, 'delete_user_referrer');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to delete user referrer');
     }
   });
 

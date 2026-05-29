@@ -515,6 +515,15 @@ export const updateUserReferrerInputSchema = updateUserReferrerFieldsSchema;
 
 export type UpdateUserReferrerInput = z.infer<typeof updateUserReferrerInputSchema>;
 
+export const deleteUserReferrerFieldsSchema = projectApiKeyBearerFieldsSchema.merge(writeConfirmationFieldsSchema).extend({
+  user_identifier: z.string().min(1),
+  user_identifier_type: identifierTypeForReferrerSchema,
+});
+
+export const deleteUserReferrerInputSchema = deleteUserReferrerFieldsSchema;
+
+export type DeleteUserReferrerInput = z.infer<typeof deleteUserReferrerInputSchema>;
+
 export const removeUserFromReferralCodeFieldsSchema = projectApiKeyBearerFieldsSchema.merge(writeConfirmationFieldsSchema).extend({
   referral_code: z.string().min(1).describe('Referral code the user used (path segment).'),
   user_identifier: z.string().min(1),
