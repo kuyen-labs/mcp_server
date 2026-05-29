@@ -28,12 +28,12 @@ You have access to the **Fuul** Model Context Protocol server (`fuul` in the too
 | --- | --- |
 | Health | `ping` (no auth), `whoami` (session) |
 | Metadata (cached) | `list_chains`, `list_trigger_types`, `list_payout_schemas` |
-| Projects / programs | `list_projects`, `get_project`, `list_incentives`, `get_incentive`, `get_trigger` |
+| Projects / programs | `list_projects`, `get_project`, `list_incentives`, `get_incentive`, `get_trigger`, `create_trigger`, `delete_trigger`, `update_trigger`, `create_incentive`, `delete_incentive`, `update_payout_term` |
 | Affiliate analytics | `get_affiliate_portal_stats`, `get_project_affiliate_total_stats`, `get_project_affiliates_breakdown` |
 | Managed affiliates (project API key) | `get_project_affiliate_public`, `create_project_affiliate_public`, `update_project_affiliate_public` |
 | Events (project API key) | `send_event`, `send_batch_events`, `check_event_status` |
 | Payout reads | `list_payouts_pending_approval`, `list_rewards_payouts` |
-| Writes | `create_incentive_program`, `update_incentive_program`, `approve_payouts`, `reject_payouts`, `create_project_affiliate_public`, `update_project_affiliate_public`, `send_event`, `send_batch_events` |
+| Writes | `create_trigger`, `delete_trigger`, `update_trigger`, `create_incentive`, `delete_incentive`, `update_payout_term`, `approve_payouts`, `reject_payouts`, `create_project_affiliate_public`, `update_project_affiliate_public`, `send_event`, `send_batch_events` |
 
 Full HTTP map: repository `docs/AGENTS.md`.
 
@@ -67,7 +67,7 @@ Fuul separates **draft** metadata (dashboard edits) from **published** metadata 
 
 | Field | Use for |
 | --- | --- |
-| `draft_trigger_id` | `update_trigger`, draft edits, `get_trigger` when inspecting draft |
+| `draft_trigger_id` | `update_trigger`, `delete_trigger`, `create_incentive` trigger_ids, `get_trigger` when inspecting draft |
 | `published_trigger_id` | live/prod config, SQL on published metadata — match by **`ref`**, not draft UUID |
 | `ref` | correlate draft ↔ published when UUIDs differ after publish |
 
@@ -83,12 +83,25 @@ Comparing `trigger_id` from draft `get_project` with a row in published metadata
 
 ## Writes: always `dry_run` then `confirmed`
 
-For `create_incentive_program`, `update_incentive_program`, `approve_payouts`, `reject_payouts`, `create_project_affiliate_public`, `update_project_affiliate_public`, `send_event`, `send_batch_events`:
+For `create_trigger`, `delete_trigger`, `update_trigger`, `create_incentive`, `delete_incentive`, `update_payout_term`, `approve_payouts`, `reject_payouts`, `create_project_affiliate_public`, `update_project_affiliate_public`, `send_event`, `send_batch_events`:
 
 1. Call with **`dry_run: true`** — validate and return a preview; no mutation.
 2. Show the user the preview; on approval, call again with **`confirmed: true`** (same payload shape where applicable).
 
-`create_incentive_program` / `update_incentive_program` require triggers with `schema_status === "present"` per `list_trigger_types`.
+Before `create_trigger` / `create_incentive`, call `list_trigger_types` (and `list_chains` / `list_payout_schemas` as needed) and collect all required fields from the user.
+
+## Replace token on a token-holder trigger
+
+The dashboard cannot change `context.token_address` after create; neither can `update_trigger`. Follow this playbook:
+
+1. `get_trigger` or `get_project` — read current `context` (token_address, chain_id, volume_currency_expression).
+2. Tell the user the token is not editable in place. Ask whether they want to **delete the old trigger** and create a new one, or **only create a new trigger**.
+3. **Never** call `delete_trigger` without explicit user approval.
+4. If deleting: `list_incentives` → for each incentive using this `draft_trigger_id`, `delete_incentive` (dry_run → confirmed) → then `delete_trigger` (dry_run → confirmed).
+5. `create_trigger` with the same config except the new `context.token_address` (and updated `volume_currency_expression` if needed).
+6. If `delete_trigger` fails with HTTP 422 (trigger still linked): explain that incentives must be removed first, **or** skip delete and only `create_trigger` the new token tracker; user can re-link incentives manually.
+
+Do not “fix” a wrong token by PATCHing only `currency_expression` / `volume_currency_expression` — that leaves `contracts[].address` and `context.token_address` unchanged.
 
 ## Events (conversion tracking)
 
@@ -108,7 +121,8 @@ Use `check_event_status` before resending to avoid 409 on single send. After a s
 
 - List projects: `list_projects` with `{"page":1}`.
 - List chains / trigger types / payout schemas for building programs.
-- Draft a new incentive: `create_incentive_program` with `dry_run: true` first.
+- Draft a new incentive: `create_incentive` with `dry_run: true` first.
+- Change token holder contract: see **Replace token on a token-holder trigger** above.
 - Approve pending payouts for a project: `approve_payouts` with `dry_run: true`, then `confirmed: true`.
 
 See `docs/mcp-phase2/tool-prompts.md` for more sample utterances.

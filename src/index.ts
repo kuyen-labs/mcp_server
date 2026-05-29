@@ -14,6 +14,8 @@ import { loadEnv } from './config/env.js';
 import { runCheckEventStatus, runSendBatchEvents, runSendEvent } from './events/events-handlers.js';
 import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-api-client.js';
 import { MissingProjectApiKeyError, resolveProjectApiKeyBearer } from './http/project-api-key-bearer.js';
+import { enrichPayoutSchemasResponse } from './incentives/incentive-create-payload-guide.js';
+import { runCreateIncentive, runDeleteIncentive } from './incentives/incentive-write-handlers.js';
 import { MetadataService } from './metadata/metadata-service.js';
 import {
   loadIncentivesListWithMetadataScope,
@@ -32,7 +34,11 @@ import {
 import {
   APPROVE_PAYOUTS_DESCRIPTION,
   CHECK_EVENT_STATUS_DESCRIPTION,
+  CREATE_INCENTIVE_DESCRIPTION,
   CREATE_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
+  CREATE_TRIGGER_DESCRIPTION,
+  DELETE_INCENTIVE_DESCRIPTION,
+  DELETE_TRIGGER_DESCRIPTION,
   GET_AFFILIATE_PORTAL_STATS_DESCRIPTION,
   GET_INCENTIVE_DESCRIPTION,
   GET_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
@@ -66,8 +72,16 @@ import {
 import {
   checkEventStatusFieldsSchema,
   checkEventStatusInputSchema,
+  createIncentiveFieldsSchema,
+  createIncentiveInputSchema,
   createProjectAffiliatePublicFieldsSchema,
   createProjectAffiliatePublicInputSchema,
+  createTriggerFieldsSchema,
+  createTriggerInputSchema,
+  deleteIncentiveFieldsSchema,
+  deleteIncentiveInputSchema,
+  deleteTriggerFieldsSchema,
+  deleteTriggerInputSchema,
   getAffiliatePortalStatsSchema,
   getIncentiveInputSchema,
   getProjectAffiliatePublicInputSchema,
@@ -103,6 +117,8 @@ import {
   useReferralCodeFieldsSchema,
   useReferralCodeInputSchema,
 } from './tools/tool-schemas.js';
+import { enrichTriggerTypesResponse } from './triggers/trigger-create-payload-guide.js';
+import { runCreateTrigger, runDeleteTrigger } from './triggers/trigger-write-handlers.js';
 import { compactQuery } from './util/compact-query.js';
 import { ToolTimeoutError, withTimeout } from './util/with-timeout.js';
 
@@ -176,7 +192,8 @@ async function main(): Promise<void> {
   server.tool('list_trigger_types', LIST_TRIGGER_TYPES_DESCRIPTION, {}, async () => {
     try {
       const data = await withTimeout(metadata.getTriggerTypes(), toolTimeoutMs, 'list_trigger_types');
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      const enriched = enrichTriggerTypesResponse(data);
+      return { content: [{ type: 'text', text: JSON.stringify(enriched, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e);
     }
@@ -185,7 +202,8 @@ async function main(): Promise<void> {
   server.tool('list_payout_schemas', LIST_PAYOUT_SCHEMAS_DESCRIPTION, {}, async () => {
     try {
       const data = await withTimeout(metadata.getPayoutSchemas(), toolTimeoutMs, 'list_payout_schemas');
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      const enriched = enrichPayoutSchemasResponse(data);
+      return { content: [{ type: 'text', text: JSON.stringify(enriched, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e);
     }
@@ -245,6 +263,46 @@ async function main(): Promise<void> {
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to load trigger');
+    }
+  });
+
+  server.tool('create_trigger', CREATE_TRIGGER_DESCRIPTION, createTriggerFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = createTriggerInputSchema.parse(args);
+      const data = await withTimeout(runCreateTrigger(api, parsed), toolTimeoutMs, 'create_trigger');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to create trigger');
+    }
+  });
+
+  server.tool('delete_trigger', DELETE_TRIGGER_DESCRIPTION, deleteTriggerFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = deleteTriggerInputSchema.parse(args);
+      const data = await withTimeout(runDeleteTrigger(api, parsed), toolTimeoutMs, 'delete_trigger');
+      return { content: [{ type: 'text', text: JSON.stringify(data ?? { ok: true }, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to delete trigger');
+    }
+  });
+
+  server.tool('create_incentive', CREATE_INCENTIVE_DESCRIPTION, createIncentiveFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = createIncentiveInputSchema.parse(args);
+      const data = await withTimeout(runCreateIncentive(api, parsed), toolTimeoutMs, 'create_incentive');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to create incentive');
+    }
+  });
+
+  server.tool('delete_incentive', DELETE_INCENTIVE_DESCRIPTION, deleteIncentiveFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = deleteIncentiveInputSchema.parse(args);
+      const data = await withTimeout(runDeleteIncentive(api, parsed), toolTimeoutMs, 'delete_incentive');
+      return { content: [{ type: 'text', text: JSON.stringify(data ?? { ok: true }, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to delete incentive');
     }
   });
 

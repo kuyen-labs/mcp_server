@@ -1,0 +1,168 @@
+/**
+ * Maps webapp reward types to POST /incentives body (CreateIncentiveDto + payout_terms[]).
+ * Aligned with fuul-webapp conversions/infra/encode.ts (mapToIncentiveTypeMapper).
+ */
+
+export type IncentiveRewardTypeId = 'fixed-reward' | 'variable-reward' | 'proportional-pool' | 'leaderboard';
+
+export const CREATE_INCENTIVE_GLOBAL_GUIDE = {
+  endpoint: 'POST /api/v1/projects/:projectId/incentives',
+  body_shape: {
+    name: 'string (incentive / conversion name)',
+    trigger_ids: 'uuid[] (draft_trigger_id from create_trigger or get_project; min 1)',
+    payout_terms: 'array of PayoutTermDto objects (min 1); one term per reward configuration',
+  },
+  reward_types: {
+    'fixed-reward': {
+      webapp_mapper: 'mapToFixedIncentiveDTO',
+      scheme: 'pay-per-attribution',
+      calculation_strategy: 'fixed',
+      notes:
+        'Use referral_amount / referrer_amount (wei strings for onchain-currency, plain strings for point). ' +
+        'type "point" uses payout_currency_address 0x0..0 and chain_id 0.',
+    },
+    'variable-reward': {
+      webapp_mapper: 'mapToVariableIncentiveDTO',
+      scheme: 'pay-per-attribution',
+      calculation_strategy: 'variable',
+      notes:
+        'Use referrer_amount_percentage / referral_amount_percentage (0–1 for % of revenue, or unit amounts when base_currency is not "none"). ' +
+        'Requires trigger_amount_source (e.g. "volume"). base_currency "none" = % of revenue mode.',
+    },
+    'proportional-pool': {
+      webapp_mapper: 'mapToPoolIncentiveDTO',
+      scheme: 'pool',
+      notes:
+        'Requires amount_source, pool_amount, pool_duration (hours), pool_calculation_day_cron (e.g. "*" for daily). ' +
+        'Optional pool_start_date, pool_end_date, pool_distribution_mode ("linear" | "square_root").',
+    },
+    leaderboard: {
+      webapp_mapper: 'mapToLeaderboardIncentiveDTO',
+      scheme: 'rank',
+      notes:
+        'Requires rank_scheme_config.ranks (position -> { prizeAmount }), amount_source, pool_amount (total), ' +
+        'pool_duration, pool_calculation_day_cron, pool_start_date, pool_end_date.',
+    },
+  },
+  workflow: [
+    'Call list_payout_schemas (enriched with reward_types and create_payload_example).',
+    'Create or pick draft triggers (create_trigger); collect draft_trigger_id values.',
+    'Build payout_terms[] for the chosen reward type; create_incentive with dry_run then confirmed.',
+  ],
+  mcp_normalization:
+    'create_incentive runs normalizePayoutTermBodyForPatch on each payout term (variable: maps referral_amount aliases to *_percentage).',
+  reference: 'fuul-webapp src/modules/conversions/infra/encode.ts',
+} as const;
+
+/** Minimal create_incentive examples; replace TRIGGER_UUID. */
+export const CREATE_INCENTIVE_EXAMPLES: Record<IncentiveRewardTypeId, { description: string; payload: Record<string, unknown> }> = {
+  'fixed-reward': {
+    description: 'Fixed points to affiliate per attribution',
+    payload: {
+      name: 'MCP fixed points incentive',
+      trigger_ids: ['<TRIGGER_UUID>'],
+      payout_terms: [
+        {
+          scheme: 'pay-per-attribution',
+          type: 'point',
+          calculation_strategy: 'fixed',
+          payee_type: 'affiliate',
+          require_affiliate: true,
+          require_approval: false,
+          referral_amount: '0',
+          referrer_amount: '10',
+        },
+      ],
+    },
+  },
+  'variable-reward': {
+    description: 'Variable % of volume to affiliate',
+    payload: {
+      name: 'MCP variable incentive',
+      trigger_ids: ['<TRIGGER_UUID>'],
+      payout_terms: [
+        {
+          scheme: 'pay-per-attribution',
+          type: 'point',
+          calculation_strategy: 'variable',
+          payee_type: 'affiliate',
+          require_affiliate: true,
+          require_approval: false,
+          trigger_amount_source: 'volume',
+          base_currency: 'none',
+          referrer_amount_percentage: 0.1,
+          referral_amount_percentage: 0,
+        },
+      ],
+    },
+  },
+  'proportional-pool': {
+    description: 'Proportional pool distributed by volume',
+    payload: {
+      name: 'MCP pool incentive',
+      trigger_ids: ['<TRIGGER_UUID>'],
+      payout_terms: [
+        {
+          scheme: 'pool',
+          type: 'point',
+          payee_type: 'affiliate',
+          require_affiliate: true,
+          require_approval: false,
+          amount_source: 'volume',
+          pool_amount: '1000',
+          pool_duration: 168,
+          pool_calculation_day_cron: '*',
+          pool_distribution_mode: 'linear',
+        },
+      ],
+    },
+  },
+  leaderboard: {
+    description: 'Rank leaderboard with prizes for top positions',
+    payload: {
+      name: 'MCP leaderboard incentive',
+      trigger_ids: ['<TRIGGER_UUID>'],
+      payout_terms: [
+        {
+          scheme: 'rank',
+          type: 'point',
+          payee_type: 'affiliate',
+          require_affiliate: true,
+          require_approval: false,
+          amount_source: 'volume',
+          pool_amount: '100',
+          rank_scheme_config: {
+            ranks: {
+              '1': { prizeAmount: '60' },
+              '2': { prizeAmount: '40' },
+            },
+          },
+          pool_duration: 168,
+          pool_calculation_day_cron: '1',
+          pool_start_date: '2026-05-29T00:00:00.000Z',
+          pool_end_date: '2026-06-05T00:00:00.000Z',
+        },
+      ],
+    },
+  },
+};
+
+export function enrichPayoutSchemasResponse(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') {
+    return raw;
+  }
+
+  const payload = raw as Record<string, unknown>;
+  const reward_types = (Object.keys(CREATE_INCENTIVE_EXAMPLES) as IncentiveRewardTypeId[]).map((id) => ({
+    id,
+    ...CREATE_INCENTIVE_GLOBAL_GUIDE.reward_types[id === 'leaderboard' ? 'leaderboard' : id],
+    create_payload_example: CREATE_INCENTIVE_EXAMPLES[id].payload,
+    example_description: CREATE_INCENTIVE_EXAMPLES[id].description,
+  }));
+
+  return {
+    ...payload,
+    create_incentive_payload_guide: CREATE_INCENTIVE_GLOBAL_GUIDE,
+    reward_types,
+  };
+}

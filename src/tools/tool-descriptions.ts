@@ -11,9 +11,15 @@ export const LIST_CHAINS_DESCRIPTION =
   'Lists supported blockchain chains from GET /public-api/v1/metadata/chains. Uses server metadata (not a hardcoded catalog); responses are cached with ETag/Cache-Control. Each chain includes snake_case fields such as chain_id, is_testnet, optional svm_network and webapp_capabilities, and can_be_used_for_payouts (boolean: true where Fuul reward/payout infra is deployed). Params: none (pass {}). Pagination: not exposed by this tool until the API adds cursor/limit.';
 
 export const LIST_TRIGGER_TYPES_DESCRIPTION =
-  'Lists trigger type metadata from GET /public-api/v1/metadata/trigger-types (cached). Use ids from this response when building programs/triggers. Params: {}.';
+  'Lists trigger type metadata from GET /public-api/v1/metadata/trigger-types (cached), enriched for create_trigger. ' +
+  'Each trigger_types[] row includes: context_json_schema (field definitions), create_payload_layout (flat_dto | context_only | context_and_root_fields), create_payload_notes, and create_payload_example when available. ' +
+  'Top-level create_trigger_payload_guide explains the three layouts (same as fuul-webapp encode.ts). ' +
+  'Always call this before create_trigger. Params: {}.';
 
-export const LIST_PAYOUT_SCHEMAS_DESCRIPTION = 'Lists payout schema metadata from GET /public-api/v1/metadata/payout-schemas (cached). Params: {}.';
+export const LIST_PAYOUT_SCHEMAS_DESCRIPTION =
+  'Lists payout schema metadata from GET /public-api/v1/metadata/payout-schemas (cached), enriched for create_incentive. ' +
+  'Includes enums, payout_term_dto.schemes (per PayoutScheme), plus reward_types[] with create_payload_example for: fixed-reward, variable-reward, proportional-pool, leaderboard. ' +
+  'Top-level create_incentive_payload_guide documents body shape and webapp encode.ts mappers. Call before create_incentive. Params: {}.';
 
 export const LIST_PROJECTS_DESCRIPTION =
   'Lists dashboard projects for the current user: GET /api/v1/projects with optional ?page= (1-based) and ?query=. Example: {"page":1} or {"query":"acme"}.';
@@ -55,9 +61,58 @@ export const UPDATE_AUDIENCE_DESCRIPTION =
   'Updates an audience (user list): PATCH /api/v1/projects/:projectId/audiences/:audienceId. Body matches CreateOrUpdateAudienceDto: name (required), optional conditions[] (signature + parameters), condition_match_mode "any"|"all" (required if conditions non-empty), contractId. ' +
   'dry_run then confirmed. Example dry_run: {"project_id":"<uuid>","audience_id":"<uuid>","name":"VIP","dry_run":true}.';
 
+export const CREATE_TRIGGER_DESCRIPTION =
+  'Creates a draft trigger: POST /api/v1/projects/:projectId/triggers. Body matches CreateTriggerDto (fuul-webapp triggersService.create / encodeByTriggerType). ' +
+  'REQUIRED: call list_trigger_types first; use trigger_types[].id as trigger.type and follow create_payload_layout for that id. ' +
+  'Layouts: (1) flat_dto — types custom/classic: put context_json_schema fields at trigger ROOT (signature, event_type, expressions, payable, end_user_identifier_property, contract_ids), NOT nested only in context. ' +
+  '(2) context_only — token-holder, liquidity-pool-v2: fields only under trigger.context. ' +
+  '(3) context_and_root_fields — most presets: fields under trigger.context plus end_user_identifier_property at root when needed. ' +
+  'Use create_payload_example from list_trigger_types when present. Call list_chains for chain_id. dry_run then confirmed. ' +
+  'Token-holder: {"name":"...","description":"...","type":"token-holder","context":{"token_address":"0x...","chain_id":1,"volume_currency_expression":"0x..."}}. ' +
+  'Custom off-chain: {"name":"...","description":"...","type":"custom","signature":"event_name","event_type":"off-chain-event","end_user_identifier_property":"address","payable":true,...expressions at root}.';
+
+const REPLACE_TRIGGER_TOKEN_FLOW =
+  'Replace-trigger flow (token/chain change; after telling the user update_trigger cannot change token_address/chain_id): ' +
+  '(1) get_project or list_incentives — list every incentive/conversion whose triggers[] includes this draft_trigger_id; ' +
+  '(2) delete_conversion for each draft_conversion_id (removes conversion + trigger links); ' +
+  '(3) delete_trigger; ' +
+  '(4) create_trigger with the new context; ' +
+  '(5) create_incentive if the program must be recreated. ' +
+  'Do not call delete_trigger until step 2 is done for all linked conversions.';
+
+export const DELETE_TRIGGER_DESCRIPTION =
+  'Deletes a draft trigger: DELETE /api/v1/projects/:projectId/triggers/:triggerId. Use draft_trigger_id from get_project. ' +
+  'Requires dry_run then confirmed. Never call without explicit user approval. ' +
+  'Mandatory pre-check: call get_project or list_incentives and find every conversion (draft_conversion_id) linked to this draft_trigger_id. ' +
+  REPLACE_TRIGGER_TOKEN_FLOW +
+  ' If delete still returns HTTP 422, report remaining links and stop — do not retry delete_trigger blindly.';
+
+export const CREATE_INCENTIVE_DESCRIPTION =
+  'Creates a draft incentive (conversion): POST /api/v1/projects/:projectId/incentives. Body: name, trigger_ids[] (draft_trigger_id), payout_terms[] (PayoutTermDto, min 1 each). ' +
+  'REQUIRED: list_payout_schemas first — pick reward_types[].id (fixed-reward | variable-reward | proportional-pool | leaderboard) and use create_payload_example. ' +
+  'Schemes on wire: pay-per-attribution (fixed/variable), pool, rank. type: point | onchain-currency. payee_type: affiliate | end-user | both. ' +
+  'Fixed: calculation_strategy fixed, referrer_amount/referral_amount. Variable: calculation_strategy variable, trigger_amount_source, base_currency, *_amount_percentage. ' +
+  'Pool: scheme pool, amount_source, pool_amount, pool_duration, pool_calculation_day_cron. Leaderboard: scheme rank, rank_scheme_config.ranks, pool window fields. ' +
+  'MCP normalizes variable terms (referral_amount → referral_amount_percentage). dry_run then confirmed.';
+
+export const DELETE_CONVERSION_DESCRIPTION =
+  'Deletes a draft conversion (incentive): DELETE /api/v1/projects/:projectId/incentives/:conversionId. Use draft_conversion_id from list_incentives or get_project conversions[]. ' +
+  'Soft-deletes the conversion, its payout terms, and conversion_triggers links so delete_trigger can succeed. dry_run then confirmed. ' +
+  'Required before delete_trigger when replacing a trigger (token/chain change). Prefer this tool over delete_incentive in that flow.';
+
+export const DELETE_INCENTIVE_DESCRIPTION =
+  'Deletes a draft incentive (conversion): DELETE /api/v1/projects/:projectId/incentives/:conversionId. Same API as delete_conversion. ' +
+  'Use draft_conversion_id from list_incentives or get_project conversions[]. dry_run then confirmed. ' +
+  'When replacing a trigger, use delete_conversion (step 2 of the replace flow) before delete_trigger.';
+
 export const UPDATE_TRIGGER_DESCRIPTION =
   'Updates a trigger: PATCH /api/v1/projects/:projectId/triggers/:triggerId. Partial body matching UpdateTriggerDto (name, description, event_type, expressions, payable, ref, contract_ids as single-element array, etc.). ' +
-  'At least one patch field required. dry_run then confirmed. Use get_trigger first for current state.';
+  'Does NOT update context fields such as token_address or chain_id — those are immutable after create. ' +
+  'If the user asks to change token_address, chain_id, or the tracked token/contract: do NOT call PATCH. First inform the user clearly: "This cannot be updated in place; you must delete the trigger and create a new one with the new token/chain." ' +
+  'Then, only with explicit user approval, run the replace flow: ' +
+  REPLACE_TRIGGER_TOKEN_FLOW +
+  ' Never skip step 1 — always list linked conversions before delete_trigger. ' +
+  'At least one patch field required for allowed fields only. dry_run then confirmed. Use get_trigger first for current state.';
 
 export const LIST_PAYOUTS_PENDING_APPROVAL_DESCRIPTION =
   'Lists payouts pending approval: GET /api/v1/projects/:projectId/payouts/pending-approval. Optional page, page_size. Example: {"project_id":"<uuid>","page":1,"page_size":50}.';
