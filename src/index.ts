@@ -116,6 +116,7 @@ import {
   useReferralCodeFieldsSchema,
   useReferralCodeInputSchema,
 } from './tools/tool-schemas.js';
+import { enrichTriggerTypesResponse } from './triggers/trigger-create-payload-guide.js';
 import { runCreateTrigger, runDeleteTrigger } from './triggers/trigger-write-handlers.js';
 import { compactQuery } from './util/compact-query.js';
 import { ToolTimeoutError, withTimeout } from './util/with-timeout.js';
@@ -190,7 +191,8 @@ async function main(): Promise<void> {
   server.tool('list_trigger_types', LIST_TRIGGER_TYPES_DESCRIPTION, {}, async () => {
     try {
       const data = await withTimeout(metadata.getTriggerTypes(), toolTimeoutMs, 'list_trigger_types');
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      const enriched = enrichTriggerTypesResponse(data);
+      return { content: [{ type: 'text', text: JSON.stringify(enriched, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e);
     }

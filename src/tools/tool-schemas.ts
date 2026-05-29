@@ -123,8 +123,11 @@ export const createTriggerFieldsSchema = writeConfirmationFieldsSchema.extend({
   trigger: z
     .record(z.string(), z.unknown())
     .describe(
-      'Full create payload: name, description (required), optional type, context, expressions, contract_ids, etc. ' +
-        'For token-holder: type "token-holder", context { token_address, chain_id, volume_currency_expression }.',
+      'CreateTriggerDto body. Required: name, description, type (list_trigger_types[].id). ' +
+        'Layout from list_trigger_types create_payload_layout: flat_dto (custom/classic) = schema fields at root; ' +
+        'context_only (token-holder, liquidity-pool-v2) = fields in context; ' +
+        'context_and_root_fields = fields in context + end_user_identifier_property at root. ' +
+        'See create_payload_example on the matching trigger_types row.',
     ),
 });
 
