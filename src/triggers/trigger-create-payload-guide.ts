@@ -4,6 +4,8 @@
  * `CreateTriggerCommand.parseTriggerContext`.
  */
 
+import { DAI_ETHEREUM, EXAMPLE_UNKNOWN_STABLECOIN_18D, TOKEN_HOLDER_PRICE_REFERENCE_GUIDE } from './price-reference-guide.js';
+
 export type CreatePayloadLayout = 'flat_dto' | 'context_only' | 'context_and_root_fields';
 
 /** Server copies the whole DTO into stored context (fields must be at trigger root, not only in context). */
@@ -38,21 +40,34 @@ export const CREATE_TRIGGER_GLOBAL_GUIDE = {
   workflow: [
     'Call list_trigger_types and read create_payload_layout + create_payload_example for the chosen id.',
     'Call list_chains when the trigger needs chain_id.',
+    'For token-holder types: call list_price_references for the chain before create_trigger.',
+    'If token_address is not a listed price reference, ask the user stablecoin vs variable-price and decimals; set volume_currency_expression to a matching reference.',
     'Build trigger object; use create_trigger with dry_run then confirmed.',
   ],
+  token_holder_price_reference: TOKEN_HOLDER_PRICE_REFERENCE_GUIDE,
   reference: 'fuul-webapp src/modules/triggers/infra/encode.ts (encodeByTriggerType)',
 } as const;
 
 /** Minimal create_trigger.trigger examples (dashboard-aligned). */
 export const CREATE_PAYLOAD_EXAMPLES: Partial<Record<string, Record<string, unknown>>> = {
   'token-holder': {
-    name: 'Hold TOKEN',
-    description: 'Daily holding of TOKEN on Ethereum',
+    name: 'Hold DAI',
+    description: 'Daily holding of DAI on Ethereum',
     type: 'token-holder',
     context: {
-      token_address: '0x0000000000000000000000000000000000000000',
+      token_address: DAI_ETHEREUM,
       chain_id: 1,
-      volume_currency_expression: '0x0000000000000000000000000000000000000000',
+      volume_currency_expression: DAI_ETHEREUM,
+    },
+  },
+  'token-holder-unknown-stablecoin-18d': {
+    name: 'Hold custom stablecoin',
+    description: 'Daily holding of unlisted 18-decimal stablecoin on Ethereum',
+    type: 'token-holder',
+    context: {
+      token_address: EXAMPLE_UNKNOWN_STABLECOIN_18D,
+      chain_id: 1,
+      volume_currency_expression: DAI_ETHEREUM,
     },
   },
   custom: {
@@ -98,9 +113,9 @@ export const CREATE_PAYLOAD_EXAMPLES: Partial<Record<string, Record<string, unkn
     description: 'Daily holding on Ethereum',
     type: 'liquidity-pool-v2',
     context: {
-      token_address: '0x0000000000000000000000000000000000000000',
+      token_address: DAI_ETHEREUM,
       chain_id: 1,
-      volume_currency_expression: '0x0000000000000000000000000000000000000000',
+      volume_currency_expression: DAI_ETHEREUM,
     },
   },
   'uniswap-liquidity-v3': {
@@ -121,8 +136,20 @@ export const CREATE_PAYLOAD_EXAMPLES: Partial<Record<string, Record<string, unkn
     type: 'solana-token-holder',
     context: {
       token_address: '<mint-address>',
-      volume_currency_expression: '<optional-mint-or-price-ref>',
+      volume_currency_expression: '<mint-if-listed-in-list_price_references-else-ask-user-and-pick-matching-decimals>',
       chain_identifier: '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
+    },
+    end_user_identifier_property: 'address',
+    end_user_identifier_expression: null,
+  },
+  'fogo-token-holder': {
+    name: 'Hold TOKEN - Fogo',
+    description: 'Daily holding on Fogo',
+    type: 'fogo-token-holder',
+    context: {
+      token_address: '<token-address>',
+      volume_currency_expression: '<token-if-listed-in-list_price_references-else-ask-user-and-pick-matching-decimals>',
+      chain_identifier: '102',
     },
     end_user_identifier_property: 'address',
     end_user_identifier_expression: null,
@@ -170,12 +197,20 @@ export function enrichTriggerTypesResponse(raw: unknown): unknown {
     const id = typeof typed.id === 'string' ? typed.id : '';
     const layout = id ? getCreatePayloadLayout(id) : 'context_and_root_fields';
     const example = id ? CREATE_PAYLOAD_EXAMPLES[id] : undefined;
+    const priceRefExample = id === 'token-holder' ? CREATE_PAYLOAD_EXAMPLES['token-holder-unknown-stablecoin-18d'] : undefined;
 
     return {
       ...typed,
       create_payload_layout: layout,
       create_payload_notes: getCreatePayloadNotes(layout),
       ...(example ? { create_payload_example: example } : {}),
+      ...(priceRefExample ? { create_payload_example_with_price_reference: priceRefExample } : {}),
+      ...(CONTEXT_ONLY_TRIGGER_TYPES.has(id) || id === 'solana-token-holder' || id === 'fogo-token-holder'
+        ? {
+            price_reference_workflow:
+              'Call list_price_references before create_trigger; see create_trigger_payload_guide.token_holder_price_reference',
+          }
+        : {}),
     };
   });
 

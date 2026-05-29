@@ -24,6 +24,25 @@ export const LIST_TRIGGER_TYPES_DESCRIPTION =
   'Top-level create_trigger_payload_guide explains the three layouts (same as fuul-webapp encode.ts). ' +
   'Always call this before create_trigger. Params: {}.';
 
+export const RESOLVE_TOKEN_HOLDER_PRICE_REFERENCE_DESCRIPTION =
+  'Resolves context.volume_currency_expression for token-holder triggers (check + assign). ' +
+  'Step 1: pass token_address and chain_identifier (or chain_id). If the token is already in Fuul price references → status listed_use_same_address, use token_address as volume_currency_expression. ' +
+  'Step 2: if status needs_user_input, ask: stablecoin or variable? decimals 6 or 18? Then call again with token_kind and decimals. ' +
+  'Step 3: status resolved returns assigned volume_currency_expression (e.g. stablecoin + 18 decimals on Ethereum → DAI). Use that in create_trigger. ' +
+  'create_trigger rejects unlisted tokens when volume_currency_expression equals token_address. ' +
+  'Example listed: {"token_address":"0x6b175474e89094c44da98b954eedeac495271d0f","chain_identifier":"ethereum"}. ' +
+  'Example assign: {"token_address":"0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD","chain_identifier":"ethereum","token_kind":"stablecoin","decimals":18}.';
+
+export const LIST_PRICE_REFERENCES_DESCRIPTION =
+  'Lists currencies usable as price references for token-holder triggers: GET /api/v1/currencies?price_reference=true&page_size=100. ' +
+  'Optional chain_identifier (e.g. "ethereum") filters to that chain. Each result includes identifier (use as volume_currency_expression), name, decimals, chain_identifier. ' +
+  'REQUIRED before create_trigger when the held token may not be a known asset (not on CoinGecko/CMC). ' +
+  'Workflow: (1) Call with the trigger chain. (2) If token_address is in results[] (EVM: compare identifier case-insensitively), set volume_currency_expression = token_address. ' +
+  '(3) If NOT listed, ask the user: stablecoin or variable-price? How many decimals (6 or 18)? Pick a reference from results with matching decimals. ' +
+  'Examples: DAI 0x6b175474e89094c44da98b954eedeac495271d0f on Ethereum is listed — use same address. ' +
+  'Unknown 18-decimal stablecoin 0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD on Ethereum is NOT listed — use DAI as volume_currency_expression, not the token address. ' +
+  'Wrong reference → trigger creates (201) but never prices volume correctly. Params: {} or {"chain_identifier":"ethereum"}.';
+
 export const LIST_PAYOUT_SCHEMAS_DESCRIPTION =
   'Lists payout schema metadata from GET /public-api/v1/metadata/payout-schemas (cached), enriched for create_incentive. ' +
   'Includes enums, payout_term_dto.schemes (per PayoutScheme), plus reward_types[] with create_payload_example for: fixed-reward, variable-reward, proportional-pool, leaderboard. ' +
@@ -78,7 +97,11 @@ export const CREATE_TRIGGER_DESCRIPTION =
   '(2) context_only — token-holder, liquidity-pool-v2: fields only under trigger.context. ' +
   '(3) context_and_root_fields — most presets: fields under trigger.context plus end_user_identifier_property at root when needed. ' +
   'Use create_payload_example from list_trigger_types when present. Call list_chains for chain_id. dry_run then confirmed. ' +
-  'Token-holder: {"name":"...","description":"...","type":"token-holder","context":{"token_address":"0x...","chain_id":1,"volume_currency_expression":"0x..."}}. ' +
+  'Token-holder price reference (CRITICAL): context.volume_currency_expression prices held balance. Before create_trigger for token-holder / liquidity-pool-v2 / balancer / solana-token-holder / fogo-token-holder: call list_price_references for the chain. ' +
+  'If token_address is in that list → volume_currency_expression = token_address. If NOT listed → ask user stablecoin vs variable-price and decimals (6/18), then set volume_currency_expression to a listed reference with matching decimals (e.g. 18-decimal stablecoin on Ethereum → DAI 0x6b175474e89094c44da98b954eedeac495271d0f). ' +
+  'Using an unlisted token address causes HTTP 201 but broken volume at runtime. ' +
+  'Token-holder example (known asset): {"name":"Hold DAI","description":"...","type":"token-holder","context":{"token_address":"0x6b175474e89094c44da98b954eedeac495271d0f","chain_id":1,"volume_currency_expression":"0x6b175474e89094c44da98b954eedeac495271d0f"}}. ' +
+  'Token-holder example (unknown 18d stablecoin): token 0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD → volume_currency_expression 0x6b175474e89094c44da98b954eedeac495271d0f (DAI). ' +
   'Custom off-chain: {"name":"...","description":"...","type":"custom","signature":"event_name","event_type":"off-chain-event","end_user_identifier_property":"address","payable":true,...expressions at root}.' +
   PUBLISH_METADATA_AFTER_WRITE_NOTE;
 

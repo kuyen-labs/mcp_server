@@ -12,6 +12,7 @@ import { assertWriteConfirmedOrDryRun, WriteNotConfirmedError } from './agent/wr
 import { OAuthClient } from './auth/oauth-client.js';
 import { TokenStore } from './auth/token-store.js';
 import { loadEnv } from './config/env.js';
+import { runListPriceReferences, runResolveTokenHolderPriceReference } from './currencies/currency-handlers.js';
 import { runCheckEventStatus, runSendBatchEvents, runSendEvent } from './events/events-handlers.js';
 import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-api-client.js';
 import { MissingProjectApiKeyError, resolveProjectApiKeyBearer } from './http/project-api-key-bearer.js';
@@ -23,11 +24,7 @@ import {
   loadIncentiveWithMetadataScope,
   loadProjectWithMetadataScope,
 } from './metadata-scope/fetch-project-config.js';
-import {
-  attachDraftIdResolution,
-  resolveDraftConversionIdForWrite,
-  resolveDraftTriggerIdForWrite,
-} from './metadata-scope/resolve-draft-ids.js';
+import { attachDraftIdResolution, resolveDraftConversionIdForWrite, resolveDraftTriggerIdForWrite } from './metadata-scope/resolve-draft-ids.js';
 import { normalizePayoutTermBodyForPatch } from './payouts/normalize-payout-term-body.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import {
@@ -59,12 +56,14 @@ import {
   LIST_INCENTIVES_DESCRIPTION,
   LIST_PAYOUT_SCHEMAS_DESCRIPTION,
   LIST_PAYOUTS_PENDING_APPROVAL_DESCRIPTION,
+  LIST_PRICE_REFERENCES_DESCRIPTION,
   LIST_PROJECTS_DESCRIPTION,
   LIST_REWARDS_PAYOUTS_DESCRIPTION,
   LIST_TRIGGER_TYPES_DESCRIPTION,
   PING_DESCRIPTION,
   REJECT_PAYOUTS_DESCRIPTION,
   REMOVE_USER_FROM_REFERRAL_CODE_DESCRIPTION,
+  RESOLVE_TOKEN_HOLDER_PRICE_REFERENCE_DESCRIPTION,
   SEND_BATCH_EVENTS_DESCRIPTION,
   SEND_EVENT_DESCRIPTION,
   SWAP_USER_REFERRAL_CODE_DESCRIPTION,
@@ -101,12 +100,15 @@ import {
   getUserReferrerFieldsSchema,
   getUserReferrerInputSchema,
   listPayoutsPendingApprovalSchema,
+  listPriceReferencesInputSchema,
   listProjectsInputSchema,
   listRewardsPayoutsSchema,
   payoutBatchActionInputSchema,
   projectIdParamSchema,
   removeUserFromReferralCodeFieldsSchema,
   removeUserFromReferralCodeInputSchema,
+  resolveTokenHolderPriceReferenceFieldsSchema,
+  resolveTokenHolderPriceReferenceInputSchema,
   sendBatchEventsFieldsSchema,
   sendBatchEventsInputSchema,
   sendEventFieldsSchema,
@@ -198,6 +200,31 @@ async function main(): Promise<void> {
       return toolErrorPayload(e);
     }
   });
+
+  server.tool('list_price_references', LIST_PRICE_REFERENCES_DESCRIPTION, listPriceReferencesInputSchema.shape, async (args) => {
+    try {
+      const parsed = listPriceReferencesInputSchema.parse(args);
+      const data = await withTimeout(runListPriceReferences(api, parsed), toolTimeoutMs, 'list_price_references');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to list price references');
+    }
+  });
+
+  server.tool(
+    'resolve_token_holder_price_reference',
+    RESOLVE_TOKEN_HOLDER_PRICE_REFERENCE_DESCRIPTION,
+    resolveTokenHolderPriceReferenceFieldsSchema.shape,
+    async (args) => {
+      try {
+        const parsed = resolveTokenHolderPriceReferenceInputSchema.parse(args);
+        const data = await withTimeout(runResolveTokenHolderPriceReference(api, parsed), toolTimeoutMs, 'resolve_token_holder_price_reference');
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      } catch (e) {
+        return toolErrorPayload(e, 'Failed to resolve token holder price reference');
+      }
+    },
+  );
 
   server.tool('list_trigger_types', LIST_TRIGGER_TYPES_DESCRIPTION, {}, async () => {
     try {
@@ -591,12 +618,7 @@ async function main(): Promise<void> {
     try {
       const parsed = updatePayoutTermInputSchema.parse(args);
       assertWriteConfirmedOrDryRun(parsed);
-      const conversionResolution = await resolveDraftConversionIdForWrite(
-        api,
-        parsed.project_id,
-        parsed.conversion_id,
-        toolTimeoutMs,
-      );
+      const conversionResolution = await resolveDraftConversionIdForWrite(api, parsed.project_id, parsed.conversion_id, toolTimeoutMs);
       const path = `/api/v1/projects/${parsed.project_id}/conversions/${conversionResolution.resolved_draft_conversion_id}/payout_terms/${parsed.payout_term_id}`;
       const patchBody = normalizePayoutTermBodyForPatch(parsed.payout_term as Record<string, unknown>);
       if (parsed.dry_run === true) {
@@ -604,11 +626,7 @@ async function main(): Promise<void> {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(
-                attachDraftIdResolution({ dry_run: true, would_patch: path, body: patchBody }, conversionResolution),
-                null,
-                2,
-              ),
+              text: JSON.stringify(attachDraftIdResolution({ dry_run: true, would_patch: path, body: patchBody }, conversionResolution), null, 2),
             },
           ],
         };
@@ -658,12 +676,7 @@ async function main(): Promise<void> {
     try {
       const parsed = updateTriggerInputSchema.parse(args);
       assertWriteConfirmedOrDryRun(parsed);
-      const triggerResolution = await resolveDraftTriggerIdForWrite(
-        api,
-        parsed.project_id,
-        parsed.trigger_id,
-        toolTimeoutMs,
-      );
+      const triggerResolution = await resolveDraftTriggerIdForWrite(api, parsed.project_id, parsed.trigger_id, toolTimeoutMs);
       const path = `/api/v1/projects/${parsed.project_id}/triggers/${triggerResolution.resolved_draft_trigger_id}`;
       const body: Record<string, unknown> = {};
       if (parsed.name !== undefined) {

@@ -2,6 +2,8 @@ import { assertWriteConfirmedOrDryRun } from '../agent/write-confirmation.js';
 import { ApiRequestError, type FuulApiClient } from '../http/fuul-api-client.js';
 import { attachDraftIdResolution, resolveDraftTriggerIdForWrite } from '../metadata-scope/resolve-draft-ids.js';
 import type { CreateTriggerInput, DeleteTriggerInput } from '../tools/tool-schemas.js';
+import { PRICE_REFERENCE_POST_CREATE_WARNING, TOKEN_HOLDER_TYPES_WITH_PRICE_REF } from './price-reference-guide.js';
+import { assertTokenHolderPriceReferenceValid } from './validate-token-holder-price-reference.js';
 
 const TRIGGER_IN_USE_HINT =
   'This trigger is linked to one or more incentives. Delete those incentives first with delete_incentive ' +
@@ -14,6 +16,7 @@ export async function runCreateTrigger(api: FuulApiClient, input: CreateTriggerI
   const body = input.trigger;
 
   if (input.dry_run === true) {
+    await assertTokenHolderPriceReferenceValid(api, body);
     return {
       dry_run: true,
       would_post: path,
@@ -21,14 +24,31 @@ export async function runCreateTrigger(api: FuulApiClient, input: CreateTriggerI
     };
   }
 
-  return api.postJson(path, body);
+  await assertTokenHolderPriceReferenceValid(api, body);
+  const result = await api.postJson(path, body);
+  return withPriceReferenceWarningIfNeeded(result, body);
 }
 
-export async function runDeleteTrigger(
-  api: FuulApiClient,
-  input: DeleteTriggerInput,
-  toolTimeoutMs: number,
-): Promise<unknown> {
+function withPriceReferenceWarningIfNeeded(data: unknown, trigger: Record<string, unknown>): unknown {
+  const type = trigger.type;
+  if (typeof type !== 'string' || !TOKEN_HOLDER_TYPES_WITH_PRICE_REF.has(type)) {
+    return data;
+  }
+
+  if (data !== null && typeof data === 'object' && !Array.isArray(data)) {
+    return {
+      ...(data as Record<string, unknown>),
+      _price_reference_warning: PRICE_REFERENCE_POST_CREATE_WARNING,
+    };
+  }
+
+  return {
+    result: data,
+    _price_reference_warning: PRICE_REFERENCE_POST_CREATE_WARNING,
+  };
+}
+
+export async function runDeleteTrigger(api: FuulApiClient, input: DeleteTriggerInput, toolTimeoutMs: number): Promise<unknown> {
   assertWriteConfirmedOrDryRun(input);
   const resolution = await resolveDraftTriggerIdForWrite(api, input.project_id, input.trigger_id, toolTimeoutMs);
   const path = `/api/v1/projects/${input.project_id}/triggers/${resolution.resolved_draft_trigger_id}`;

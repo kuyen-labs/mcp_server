@@ -9,6 +9,40 @@ export const listProjectsInputSchema = z.object({
   query: z.string().optional().describe('Search string; sent as ?query='),
 });
 
+export const listPriceReferencesInputSchema = z.object({
+  chain_identifier: z.string().optional().describe('Filter by chain identifier (e.g. "ethereum", "arbitrum"). Match list_chains / currency API.'),
+});
+
+export type ListPriceReferencesInput = z.infer<typeof listPriceReferencesInputSchema>;
+
+export const resolveTokenHolderPriceReferenceFieldsSchema = z.object({
+  token_address: z.string().min(1).describe('Held token contract address (EVM 0x... or chain-native mint).'),
+  chain_identifier: z.string().optional().describe('Chain for currencies API (e.g. "ethereum"). Prefer with list_chains.'),
+  chain_id: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('EVM chain_id alternative (e.g. 1 → ethereum). Used when chain_identifier omitted.'),
+  token_kind: z.enum(['stablecoin', 'variable']).optional().describe('Required when token is not listed: stablecoin or variable-price.'),
+  decimals: z
+    .union([z.literal(6), z.literal(18)])
+    .optional()
+    .describe('Required when token is not listed: token decimals (6 or 18).'),
+});
+
+export const resolveTokenHolderPriceReferenceInputSchema = resolveTokenHolderPriceReferenceFieldsSchema.superRefine((data, ctx) => {
+  const hasChain = (data.chain_identifier != null && data.chain_identifier !== '') || data.chain_id != null;
+  if (!hasChain) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide chain_identifier or chain_id',
+    });
+  }
+});
+
+export type ResolveTokenHolderPriceReferenceInput = z.infer<typeof resolveTokenHolderPriceReferenceInputSchema>;
+
 export const projectIdParamSchema = z.object({
   project_id: uuid.describe('Project UUID'),
 });
