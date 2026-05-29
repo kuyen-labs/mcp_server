@@ -1,5 +1,6 @@
 import { assertWriteConfirmedOrDryRun } from '../agent/write-confirmation.js';
 import { ApiRequestError, type FuulApiClient } from '../http/fuul-api-client.js';
+import { attachDraftIdResolution, resolveDraftTriggerIdForWrite } from '../metadata-scope/resolve-draft-ids.js';
 import type { CreateTriggerInput, DeleteTriggerInput } from '../tools/tool-schemas.js';
 
 const TRIGGER_IN_USE_HINT =
@@ -23,19 +24,28 @@ export async function runCreateTrigger(api: FuulApiClient, input: CreateTriggerI
   return api.postJson(path, body);
 }
 
-export async function runDeleteTrigger(api: FuulApiClient, input: DeleteTriggerInput): Promise<unknown> {
+export async function runDeleteTrigger(
+  api: FuulApiClient,
+  input: DeleteTriggerInput,
+  toolTimeoutMs: number,
+): Promise<unknown> {
   assertWriteConfirmedOrDryRun(input);
-  const path = `/api/v1/projects/${input.project_id}/triggers/${input.trigger_id}`;
+  const resolution = await resolveDraftTriggerIdForWrite(api, input.project_id, input.trigger_id, toolTimeoutMs);
+  const path = `/api/v1/projects/${input.project_id}/triggers/${resolution.resolved_draft_trigger_id}`;
 
   if (input.dry_run === true) {
-    return {
-      dry_run: true,
-      would_delete: path,
-    };
+    return attachDraftIdResolution(
+      {
+        dry_run: true,
+        would_delete: path,
+      },
+      resolution,
+    );
   }
 
   try {
-    return await api.deleteJson(path);
+    const result = await api.deleteJson(path);
+    return attachDraftIdResolution(result ?? { ok: true }, resolution);
   } catch (e) {
     if (e instanceof ApiRequestError && e.status === 422) {
       throw new Error(`${e.message} ${TRIGGER_IN_USE_HINT}`);

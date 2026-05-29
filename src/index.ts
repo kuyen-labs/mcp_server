@@ -23,6 +23,11 @@ import {
   loadIncentiveWithMetadataScope,
   loadProjectWithMetadataScope,
 } from './metadata-scope/fetch-project-config.js';
+import {
+  attachDraftIdResolution,
+  resolveDraftConversionIdForWrite,
+  resolveDraftTriggerIdForWrite,
+} from './metadata-scope/resolve-draft-ids.js';
 import { normalizePayoutTermBodyForPatch } from './payouts/normalize-payout-term-body.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import {
@@ -284,7 +289,7 @@ async function main(): Promise<void> {
   server.tool('delete_trigger', DELETE_TRIGGER_DESCRIPTION, deleteTriggerFieldsSchema.shape, async (args) => {
     try {
       const parsed = deleteTriggerInputSchema.parse(args);
-      const data = await withTimeout(runDeleteTrigger(api, parsed), toolTimeoutMs, 'delete_trigger');
+      const data = await withTimeout(runDeleteTrigger(api, parsed, toolTimeoutMs), toolTimeoutMs, 'delete_trigger');
       return { content: [{ type: 'text', text: stringifyToolPayload(data ?? { ok: true }, parsed.dry_run) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to delete trigger');
@@ -294,7 +299,7 @@ async function main(): Promise<void> {
   server.tool('create_incentive', CREATE_INCENTIVE_DESCRIPTION, createIncentiveFieldsSchema.shape, async (args) => {
     try {
       const parsed = createIncentiveInputSchema.parse(args);
-      const data = await withTimeout(runCreateIncentive(api, parsed), toolTimeoutMs, 'create_incentive');
+      const data = await withTimeout(runCreateIncentive(api, parsed, toolTimeoutMs), toolTimeoutMs, 'create_incentive');
       return { content: [{ type: 'text', text: stringifyToolPayload(data, parsed.dry_run) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to create incentive');
@@ -304,7 +309,7 @@ async function main(): Promise<void> {
   server.tool('delete_incentive', DELETE_INCENTIVE_DESCRIPTION, deleteIncentiveFieldsSchema.shape, async (args) => {
     try {
       const parsed = deleteIncentiveInputSchema.parse(args);
-      const data = await withTimeout(runDeleteIncentive(api, parsed), toolTimeoutMs, 'delete_incentive');
+      const data = await withTimeout(runDeleteIncentive(api, parsed, toolTimeoutMs), toolTimeoutMs, 'delete_incentive');
       return { content: [{ type: 'text', text: stringifyToolPayload(data ?? { ok: true }, parsed.dry_run) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to delete incentive');
@@ -586,20 +591,37 @@ async function main(): Promise<void> {
     try {
       const parsed = updatePayoutTermInputSchema.parse(args);
       assertWriteConfirmedOrDryRun(parsed);
-      const path = `/api/v1/projects/${parsed.project_id}/conversions/${parsed.conversion_id}/payout_terms/${parsed.payout_term_id}`;
+      const conversionResolution = await resolveDraftConversionIdForWrite(
+        api,
+        parsed.project_id,
+        parsed.conversion_id,
+        toolTimeoutMs,
+      );
+      const path = `/api/v1/projects/${parsed.project_id}/conversions/${conversionResolution.resolved_draft_conversion_id}/payout_terms/${parsed.payout_term_id}`;
       const patchBody = normalizePayoutTermBodyForPatch(parsed.payout_term as Record<string, unknown>);
       if (parsed.dry_run === true) {
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify({ dry_run: true, would_patch: path, body: patchBody }, null, 2),
+              text: JSON.stringify(
+                attachDraftIdResolution({ dry_run: true, would_patch: path, body: patchBody }, conversionResolution),
+                null,
+                2,
+              ),
             },
           ],
         };
       }
       const data = await withTimeout(api.patchJson(path, patchBody), toolTimeoutMs, 'update_payout_term');
-      return { content: [{ type: 'text', text: stringifyToolPayload(data, parsed.dry_run) }] };
+      return {
+        content: [
+          {
+            type: 'text',
+            text: stringifyToolPayload(attachDraftIdResolution(data, conversionResolution), parsed.dry_run),
+          },
+        ],
+      };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to update payout term');
     }
@@ -636,7 +658,13 @@ async function main(): Promise<void> {
     try {
       const parsed = updateTriggerInputSchema.parse(args);
       assertWriteConfirmedOrDryRun(parsed);
-      const path = `/api/v1/projects/${parsed.project_id}/triggers/${parsed.trigger_id}`;
+      const triggerResolution = await resolveDraftTriggerIdForWrite(
+        api,
+        parsed.project_id,
+        parsed.trigger_id,
+        toolTimeoutMs,
+      );
+      const path = `/api/v1/projects/${parsed.project_id}/triggers/${triggerResolution.resolved_draft_trigger_id}`;
       const body: Record<string, unknown> = {};
       if (parsed.name !== undefined) {
         body.name = parsed.name;
@@ -685,11 +713,23 @@ async function main(): Promise<void> {
       }
       if (parsed.dry_run === true) {
         return {
-          content: [{ type: 'text', text: JSON.stringify({ dry_run: true, would_patch: path, body }, null, 2) }],
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(attachDraftIdResolution({ dry_run: true, would_patch: path, body }, triggerResolution), null, 2),
+            },
+          ],
         };
       }
       const data = await withTimeout(api.patchJson(path, body), toolTimeoutMs, 'update_trigger');
-      return { content: [{ type: 'text', text: stringifyToolPayload(data, parsed.dry_run) }] };
+      return {
+        content: [
+          {
+            type: 'text',
+            text: stringifyToolPayload(attachDraftIdResolution(data, triggerResolution), parsed.dry_run),
+          },
+        ],
+      };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to update trigger');
     }
