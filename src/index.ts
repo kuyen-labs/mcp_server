@@ -107,6 +107,7 @@ import {
   projectIdParamSchema,
   removeUserFromReferralCodeFieldsSchema,
   removeUserFromReferralCodeInputSchema,
+  resolveTokenHolderPriceReferenceFieldsSchema,
   resolveTokenHolderPriceReferenceInputSchema,
   sendBatchEventsFieldsSchema,
   sendBatchEventsInputSchema,
@@ -213,7 +214,7 @@ async function main(): Promise<void> {
   server.tool(
     'resolve_token_holder_price_reference',
     RESOLVE_TOKEN_HOLDER_PRICE_REFERENCE_DESCRIPTION,
-    resolveTokenHolderPriceReferenceInputSchema.shape,
+    resolveTokenHolderPriceReferenceFieldsSchema.shape,
     async (args) => {
       try {
         const parsed = resolveTokenHolderPriceReferenceInputSchema.parse(args);
