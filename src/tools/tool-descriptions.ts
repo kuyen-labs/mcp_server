@@ -2,6 +2,9 @@
  * MCP tool descriptions tuned for LLMs (parameters + short examples).
  */
 
+export const PUBLISH_METADATA_AFTER_WRITE_NOTE =
+  ' On successful execution (not dry_run), the response includes _publish_metadata_reminder: publish project metadata from the dashboard (Project → Incentives or Triggers → Publish now). The MCP cannot publish for you.';
+
 export const PING_DESCRIPTION = 'Health check: returns "pong" if the MCP process is running. No API calls. Example: invoke with empty input {}.';
 
 export const WHOAMI_DESCRIPTION =
@@ -51,7 +54,8 @@ export const UPDATE_PAYOUT_TERM_DESCRIPTION =
   'Body is a single PayoutTermDto (use get_incentive, edit fields such as referral_amount / referrer_amount, send as payout_term). ' +
   'For variable rewards, the server expects referral_amount_percentage / referrer_amount_percentage; this tool maps GET aliases automatically (same as the dashboard). ' +
   'Per-unit rewards: edit referral_amount and referrer_amount; do not send zero percentages. dry_run shows the normalized body sent to the API. ' +
-  'Example dry_run: {"project_id":"<uuid>","conversion_id":"<uuid>","payout_term_id":"<uuid>","payout_term":{...},"dry_run":true}.';
+  'Example dry_run: {"project_id":"<uuid>","conversion_id":"<uuid>","payout_term_id":"<uuid>","payout_term":{...},"dry_run":true}.' +
+  PUBLISH_METADATA_AFTER_WRITE_NOTE;
 
 export const UPDATE_PROJECT_TIER_DESCRIPTION =
   'Updates a project affiliate tier: PATCH /api/v1/projects/:projectId/tiers/:tierId. Optional fields: name, description, rank, audience_id (null clears audience). ' +
@@ -69,7 +73,8 @@ export const CREATE_TRIGGER_DESCRIPTION =
   '(3) context_and_root_fields — most presets: fields under trigger.context plus end_user_identifier_property at root when needed. ' +
   'Use create_payload_example from list_trigger_types when present. Call list_chains for chain_id. dry_run then confirmed. ' +
   'Token-holder: {"name":"...","description":"...","type":"token-holder","context":{"token_address":"0x...","chain_id":1,"volume_currency_expression":"0x..."}}. ' +
-  'Custom off-chain: {"name":"...","description":"...","type":"custom","signature":"event_name","event_type":"off-chain-event","end_user_identifier_property":"address","payable":true,...expressions at root}.';
+  'Custom off-chain: {"name":"...","description":"...","type":"custom","signature":"event_name","event_type":"off-chain-event","end_user_identifier_property":"address","payable":true,...expressions at root}.' +
+  PUBLISH_METADATA_AFTER_WRITE_NOTE;
 
 const REPLACE_TRIGGER_TOKEN_FLOW =
   'Replace-trigger flow (token/chain change; after telling the user update_trigger cannot change token_address/chain_id): ' +
@@ -85,7 +90,8 @@ export const DELETE_TRIGGER_DESCRIPTION =
   'Requires dry_run then confirmed. Never call without explicit user approval. ' +
   'Mandatory pre-check: call get_project or list_incentives and find every conversion (draft_conversion_id) linked to this draft_trigger_id. ' +
   REPLACE_TRIGGER_TOKEN_FLOW +
-  ' If delete still returns HTTP 422, report remaining links and stop — do not retry delete_trigger blindly.';
+  ' If delete still returns HTTP 422, report remaining links and stop — do not retry delete_trigger blindly.' +
+  PUBLISH_METADATA_AFTER_WRITE_NOTE;
 
 export const CREATE_INCENTIVE_DESCRIPTION =
   'Creates a draft incentive (conversion): POST /api/v1/projects/:projectId/incentives. Body: name, trigger_ids[] (draft_trigger_id), payout_terms[] (PayoutTermDto, min 1 each). ' +
@@ -93,7 +99,8 @@ export const CREATE_INCENTIVE_DESCRIPTION =
   'Schemes on wire: pay-per-attribution (fixed/variable), pool, rank. type: point | onchain-currency. payee_type: affiliate | end-user | both. ' +
   'Fixed: calculation_strategy fixed, referrer_amount/referral_amount. Variable: calculation_strategy variable, trigger_amount_source, base_currency, *_amount_percentage. ' +
   'Pool: scheme pool, amount_source, pool_amount, pool_duration, pool_calculation_day_cron. Leaderboard: scheme rank, rank_scheme_config.ranks, pool window fields. ' +
-  'MCP normalizes variable terms (referral_amount → referral_amount_percentage). dry_run then confirmed.';
+  'MCP normalizes variable terms (referral_amount → referral_amount_percentage). dry_run then confirmed.' +
+  PUBLISH_METADATA_AFTER_WRITE_NOTE;
 
 export const DELETE_CONVERSION_DESCRIPTION =
   'Deletes a draft conversion (incentive): DELETE /api/v1/projects/:projectId/incentives/:conversionId. Use draft_conversion_id from list_incentives or get_project conversions[]. ' +
@@ -103,7 +110,8 @@ export const DELETE_CONVERSION_DESCRIPTION =
 export const DELETE_INCENTIVE_DESCRIPTION =
   'Deletes a draft incentive (conversion): DELETE /api/v1/projects/:projectId/incentives/:conversionId. Same API as delete_conversion. ' +
   'Use draft_conversion_id from list_incentives or get_project conversions[]. dry_run then confirmed. ' +
-  'When replacing a trigger, use delete_conversion (step 2 of the replace flow) before delete_trigger.';
+  'When replacing a trigger, use delete_conversion (step 2 of the replace flow) before delete_trigger.' +
+  PUBLISH_METADATA_AFTER_WRITE_NOTE;
 
 export const UPDATE_TRIGGER_DESCRIPTION =
   'Updates a trigger: PATCH /api/v1/projects/:projectId/triggers/:triggerId. Partial body matching UpdateTriggerDto (name, description, event_type, expressions, payable, ref, contract_ids as single-element array, etc.). ' +
@@ -112,7 +120,8 @@ export const UPDATE_TRIGGER_DESCRIPTION =
   'Then, only with explicit user approval, run the replace flow: ' +
   REPLACE_TRIGGER_TOKEN_FLOW +
   ' Never skip step 1 — always list linked conversions before delete_trigger. ' +
-  'At least one patch field required for allowed fields only. dry_run then confirmed. Use get_trigger first for current state.';
+  'At least one patch field required for allowed fields only. dry_run then confirmed. Use get_trigger first for current state.' +
+  PUBLISH_METADATA_AFTER_WRITE_NOTE;
 
 export const LIST_PAYOUTS_PENDING_APPROVAL_DESCRIPTION =
   'Lists payouts pending approval: GET /api/v1/projects/:projectId/payouts/pending-approval. Optional page, page_size. Example: {"project_id":"<uuid>","page":1,"page_size":50}.';

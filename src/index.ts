@@ -7,6 +7,7 @@ import {
   projectAffiliatesBreakdownPath,
   projectAffiliateTotalStatsPath,
 } from './affiliate-portal/affiliate-portal-queries.js';
+import { stringifyToolPayload } from './agent/publish-metadata-reminder.js';
 import { assertWriteConfirmedOrDryRun, WriteNotConfirmedError } from './agent/write-confirmation.js';
 import { OAuthClient } from './auth/oauth-client.js';
 import { TokenStore } from './auth/token-store.js';
@@ -274,7 +275,7 @@ async function main(): Promise<void> {
     try {
       const parsed = createTriggerInputSchema.parse(args);
       const data = await withTimeout(runCreateTrigger(api, parsed), toolTimeoutMs, 'create_trigger');
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      return { content: [{ type: 'text', text: stringifyToolPayload(data, parsed.dry_run) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to create trigger');
     }
@@ -284,7 +285,7 @@ async function main(): Promise<void> {
     try {
       const parsed = deleteTriggerInputSchema.parse(args);
       const data = await withTimeout(runDeleteTrigger(api, parsed), toolTimeoutMs, 'delete_trigger');
-      return { content: [{ type: 'text', text: JSON.stringify(data ?? { ok: true }, null, 2) }] };
+      return { content: [{ type: 'text', text: stringifyToolPayload(data ?? { ok: true }, parsed.dry_run) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to delete trigger');
     }
@@ -294,7 +295,7 @@ async function main(): Promise<void> {
     try {
       const parsed = createIncentiveInputSchema.parse(args);
       const data = await withTimeout(runCreateIncentive(api, parsed), toolTimeoutMs, 'create_incentive');
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      return { content: [{ type: 'text', text: stringifyToolPayload(data, parsed.dry_run) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to create incentive');
     }
@@ -304,7 +305,7 @@ async function main(): Promise<void> {
     try {
       const parsed = deleteIncentiveInputSchema.parse(args);
       const data = await withTimeout(runDeleteIncentive(api, parsed), toolTimeoutMs, 'delete_incentive');
-      return { content: [{ type: 'text', text: JSON.stringify(data ?? { ok: true }, null, 2) }] };
+      return { content: [{ type: 'text', text: stringifyToolPayload(data ?? { ok: true }, parsed.dry_run) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to delete incentive');
     }
@@ -598,7 +599,7 @@ async function main(): Promise<void> {
         };
       }
       const data = await withTimeout(api.patchJson(path, patchBody), toolTimeoutMs, 'update_payout_term');
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      return { content: [{ type: 'text', text: stringifyToolPayload(data, parsed.dry_run) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to update payout term');
     }
@@ -688,7 +689,7 @@ async function main(): Promise<void> {
         };
       }
       const data = await withTimeout(api.patchJson(path, body), toolTimeoutMs, 'update_trigger');
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      return { content: [{ type: 'text', text: stringifyToolPayload(data, parsed.dry_run) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to update trigger');
     }
