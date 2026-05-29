@@ -33,6 +33,7 @@ Single map for tools ↔ HTTP, env, and write conventions. Documentation index: 
 | `check_event_status` | `GET /api/v1/events/status` (default) or `GET /api/v1/events/pipeline` when `verbose=true` | Project API key Bearer |
 | `get_user_referrer` | `GET /api/v1/user/referrer` | Project API key Bearer |
 | `update_user_referrer` | `PUT /api/v1/user-referrers` | Project API key Bearer (`service_role`) + dry_run / confirmed |
+| `delete_user_referrer` | `DELETE /api/v1/user-referrers?user_identifier=&user_identifier_type=` | Project API key Bearer (`service_role`) + dry_run / confirmed |
 | `use_referral_code` | `PATCH /api/v1/referral_codes/:code/use` | Project API key Bearer (`service_role`) + dry_run / confirmed |
 | `remove_user_from_referral_code` | `DELETE /api/v1/referral_codes/:code/referrals` | Project API key Bearer (`service_role`) + dry_run / confirmed |
 | `swap_user_referral_code` | DELETE + PATCH /use (composed) | Project API key Bearer (`service_role`) + dry_run / confirmed |
@@ -55,7 +56,7 @@ These tools call fuul-server routes protected by **`ApiKeyMiddleware`**: the Bea
 
 Routes: `/api/v1/project-affiliates/*`, `/api/v1/events/*`, `/api/v1/user/referrer`, `/api/v1/user-referrers`, `/api/v1/referral_codes/*`.
 
-**Referrer tools** require API key scope **`service_role`**. `remove_user_from_referral_code` maps known HTTP 422 “already gone” cases to `{ already_removed: true }` for idempotent agent retries.
+**Referrer tools** require API key scope **`service_role`**. `remove_user_from_referral_code` and `delete_user_referrer` map known HTTP 422 “already gone” cases (`User referrer relationship not found`) to `{ already_removed: true }` for idempotent agent retries.
 
 Resolution order: optional per-call `project_api_key` on the tool input, else env **`FUUL_MCP_PROJECT_API_KEY`**. See `src/http/project-api-key-bearer.ts`.
 

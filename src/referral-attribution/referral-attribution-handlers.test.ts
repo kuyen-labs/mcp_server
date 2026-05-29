@@ -4,10 +4,12 @@ import { WriteNotConfirmedError } from '../agent/write-confirmation.js';
 import { ApiRequestError } from '../http/fuul-api-client.js';
 import {
   buildDeleteReferralPath,
+  buildDeleteUserReferrerPath,
   buildGetUserReferrerPath,
   buildUpdateUserReferrerBody,
   buildUseReferralCodePath,
   isAlreadyRemovedMessage,
+  runDeleteUserReferrer,
   runGetUserReferrer,
   runRemoveUserFromReferralCode,
   runSwapUserReferralCode,
@@ -81,6 +83,16 @@ describe('buildUseReferralCodePath', () => {
   });
 });
 
+describe('buildDeleteUserReferrerPath', () => {
+  it('builds query string for user referrer delete', () => {
+    const path = buildDeleteUserReferrerPath({
+      user_identifier: '0xu',
+      user_identifier_type: 'evm_address',
+    });
+    expect(path).toBe('/api/v1/user-referrers?user_identifier=0xu&user_identifier_type=evm_address');
+  });
+});
+
 describe('buildGetUserReferrerPath', () => {
   it('builds query string for user referrer read', () => {
     const path = buildGetUserReferrerPath({
@@ -101,6 +113,33 @@ describe('runGetUserReferrer', () => {
     expect(getJson).toHaveBeenCalledWith('/api/v1/user/referrer?user_identifier=0x1&user_identifier_type=evm_address', {
       bearerToken: 'key',
     });
+  });
+});
+
+describe('runDeleteUserReferrer', () => {
+  const baseInput = {
+    user_identifier: '0xu',
+    user_identifier_type: 'evm_address' as const,
+  };
+
+  it('dry_run does not call API', async () => {
+    const deleteJson = vi.fn();
+    const result = await runDeleteUserReferrer({ deleteJson } as never, 'key', { ...baseInput, dry_run: true });
+    expect(deleteJson).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ dry_run: true, would_delete: expect.stringContaining('/api/v1/user-referrers?') });
+  });
+
+  it('maps 422 not found to already_removed', async () => {
+    const deleteJson = vi.fn().mockRejectedValue(new ApiRequestError('User referrer relationship not found', 422));
+    const result = await runDeleteUserReferrer({ deleteJson } as never, 'key', { ...baseInput, confirmed: true });
+    expect(result).toEqual({ already_removed: true, reason: 'User referrer relationship not found' });
+  });
+
+  it('rethrows redemption-blocked 422 errors', async () => {
+    const deleteJson = vi
+      .fn()
+      .mockRejectedValue(new ApiRequestError('User has referral code redemptions; use DELETE /api/v1/referral_codes/:code/referrals instead', 422));
+    await expect(runDeleteUserReferrer({ deleteJson } as never, 'key', { ...baseInput, confirmed: true })).rejects.toBeInstanceOf(ApiRequestError);
   });
 });
 

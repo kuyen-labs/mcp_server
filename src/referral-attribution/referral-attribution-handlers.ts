@@ -2,6 +2,7 @@ import { assertWriteConfirmedOrDryRun } from '../agent/write-confirmation.js';
 import { ApiRequestError, type FuulApiClient } from '../http/fuul-api-client.js';
 import { buildNestQueryString } from '../http/nest-query.js';
 import type {
+  DeleteUserReferrerInput,
   GetUserReferrerInput,
   RemoveUserFromReferralCodeInput,
   SwapUserReferralCodeInput,
@@ -68,6 +69,11 @@ export function buildGetUserReferrerPath(query: { user_identifier: string; user_
   return qs ? `/api/v1/user/referrer?${qs}` : '/api/v1/user/referrer';
 }
 
+export function buildDeleteUserReferrerPath(query: { user_identifier: string; user_identifier_type: string }): string {
+  const qs = buildNestQueryString(query);
+  return qs ? `/api/v1/user-referrers?${qs}` : '/api/v1/user-referrers';
+}
+
 function normalizePatchUseResult(data: unknown): { status: 'used' } {
   if (data === undefined || data === null || data === '') {
     return { status: 'used' };
@@ -81,6 +87,27 @@ export async function runGetUserReferrer(api: FuulApiClient, bearer: string, inp
     user_identifier_type: input.user_identifier_type,
   });
   return api.getJson(path, { bearerToken: bearer });
+}
+
+export async function runDeleteUserReferrer(api: FuulApiClient, bearer: string, input: DeleteUserReferrerInput): Promise<unknown> {
+  assertWriteConfirmedOrDryRun(input);
+  const path = buildDeleteUserReferrerPath({
+    user_identifier: input.user_identifier,
+    user_identifier_type: input.user_identifier_type,
+  });
+
+  if (input.dry_run === true) {
+    return { dry_run: true, would_delete: path };
+  }
+
+  try {
+    return await api.deleteJson(path, { bearerToken: bearer });
+  } catch (e) {
+    if (e instanceof ApiRequestError && e.status === 422 && isAlreadyRemovedMessage(e.message)) {
+      return { already_removed: true, reason: e.message };
+    }
+    throw e;
+  }
 }
 
 export async function runUpdateUserReferrer(api: FuulApiClient, bearer: string, input: UpdateUserReferrerInput): Promise<unknown> {
