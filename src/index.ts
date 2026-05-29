@@ -14,6 +14,7 @@ import { loadEnv } from './config/env.js';
 import { runCheckEventStatus, runSendBatchEvents, runSendEvent } from './events/events-handlers.js';
 import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-api-client.js';
 import { MissingProjectApiKeyError, resolveProjectApiKeyBearer } from './http/project-api-key-bearer.js';
+import { enrichPayoutSchemasResponse } from './incentives/incentive-create-payload-guide.js';
 import { runCreateIncentive, runDeleteIncentive } from './incentives/incentive-write-handlers.js';
 import { MetadataService } from './metadata/metadata-service.js';
 import {
@@ -201,7 +202,8 @@ async function main(): Promise<void> {
   server.tool('list_payout_schemas', LIST_PAYOUT_SCHEMAS_DESCRIPTION, {}, async () => {
     try {
       const data = await withTimeout(metadata.getPayoutSchemas(), toolTimeoutMs, 'list_payout_schemas');
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      const enriched = enrichPayoutSchemasResponse(data);
+      return { content: [{ type: 'text', text: JSON.stringify(enriched, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e);
     }

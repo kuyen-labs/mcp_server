@@ -164,7 +164,10 @@ export const createIncentiveFieldsSchema = writeConfirmationFieldsSchema.extend(
   payout_terms: z
     .array(payoutTermSchema)
     .min(1)
-    .describe('Payout term objects (same shape as get_incentive payout_terms / webapp CreateIncentiveDTO).'),
+    .describe(
+      'PayoutTermDto[] (min 1). Use list_payout_schemas reward_types[].create_payload_example. ' +
+        'Schemes: pay-per-attribution (fixed/variable), pool, rank. See create_incentive_payload_guide.',
+    ),
 });
 
 export const createIncentiveInputSchema = createIncentiveFieldsSchema;

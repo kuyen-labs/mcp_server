@@ -16,7 +16,10 @@ export const LIST_TRIGGER_TYPES_DESCRIPTION =
   'Top-level create_trigger_payload_guide explains the three layouts (same as fuul-webapp encode.ts). ' +
   'Always call this before create_trigger. Params: {}.';
 
-export const LIST_PAYOUT_SCHEMAS_DESCRIPTION = 'Lists payout schema metadata from GET /public-api/v1/metadata/payout-schemas (cached). Params: {}.';
+export const LIST_PAYOUT_SCHEMAS_DESCRIPTION =
+  'Lists payout schema metadata from GET /public-api/v1/metadata/payout-schemas (cached), enriched for create_incentive. ' +
+  'Includes enums, payout_term_dto.schemes (per PayoutScheme), plus reward_types[] with create_payload_example for: fixed-reward, variable-reward, proportional-pool, leaderboard. ' +
+  'Top-level create_incentive_payload_guide documents body shape and webapp encode.ts mappers. Call before create_incentive. Params: {}.';
 
 export const LIST_PROJECTS_DESCRIPTION =
   'Lists dashboard projects for the current user: GET /api/v1/projects with optional ?page= (1-based) and ?query=. Example: {"page":1} or {"query":"acme"}.';
@@ -85,9 +88,12 @@ export const DELETE_TRIGGER_DESCRIPTION =
   ' If delete still returns HTTP 422, report remaining links and stop — do not retry delete_trigger blindly.';
 
 export const CREATE_INCENTIVE_DESCRIPTION =
-  'Creates a draft incentive (conversion): POST /api/v1/projects/:projectId/incentives. Body: name, trigger_ids[], payout_terms[] (same as webapp CreateIncentiveDTO). ' +
-  'Call list_payout_schemas; collect incentive type, recipient, linked triggers, payout currency and amounts before posting. ' +
-  'Payout terms are normalized for variable rewards (referral_amount → referral_amount_percentage) like update_payout_term. dry_run then confirmed.';
+  'Creates a draft incentive (conversion): POST /api/v1/projects/:projectId/incentives. Body: name, trigger_ids[] (draft_trigger_id), payout_terms[] (PayoutTermDto, min 1 each). ' +
+  'REQUIRED: list_payout_schemas first — pick reward_types[].id (fixed-reward | variable-reward | proportional-pool | leaderboard) and use create_payload_example. ' +
+  'Schemes on wire: pay-per-attribution (fixed/variable), pool, rank. type: point | onchain-currency. payee_type: affiliate | end-user | both. ' +
+  'Fixed: calculation_strategy fixed, referrer_amount/referral_amount. Variable: calculation_strategy variable, trigger_amount_source, base_currency, *_amount_percentage. ' +
+  'Pool: scheme pool, amount_source, pool_amount, pool_duration, pool_calculation_day_cron. Leaderboard: scheme rank, rank_scheme_config.ranks, pool window fields. ' +
+  'MCP normalizes variable terms (referral_amount → referral_amount_percentage). dry_run then confirmed.';
 
 export const DELETE_CONVERSION_DESCRIPTION =
   'Deletes a draft conversion (incentive): DELETE /api/v1/projects/:projectId/incentives/:conversionId. Use draft_conversion_id from list_incentives or get_project conversions[]. ' +
