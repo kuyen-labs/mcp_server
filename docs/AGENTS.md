@@ -9,6 +9,7 @@ Single map for tools ↔ HTTP, env, and write conventions. Documentation index: 
 | `ping` | — | — |
 | `whoami` | `GET /api/v1/auth/user` | Bearer |
 | `list_chains` | `GET /public-api/v1/metadata/chains` | Bearer |
+| `list_price_references` | `GET /api/v1/currencies?price_reference=true` (optional `chain_identifier`) | Bearer |
 | `list_trigger_types` | `GET /public-api/v1/metadata/trigger-types` | Bearer |
 | `list_payout_schemas` | `GET /public-api/v1/metadata/payout-schemas` | Bearer |
 | `list_projects` | `GET /api/v1/projects` (`?page`, `?query`) | Bearer |

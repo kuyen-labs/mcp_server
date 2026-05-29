@@ -28,6 +28,7 @@ You have access to the **Fuul** Model Context Protocol server (`fuul` in the too
 | --- | --- |
 | Health | `ping` (no auth), `whoami` (session) |
 | Metadata (cached) | `list_chains`, `list_trigger_types`, `list_payout_schemas` |
+| Price references | `list_price_references` (before token-holder `create_trigger` when token may be unlisted) |
 | Projects / programs | `list_projects`, `get_project`, `list_incentives`, `get_incentive`, `get_trigger`, `create_trigger`, `delete_trigger`, `update_trigger`, `create_incentive`, `delete_incentive`, `update_payout_term` |
 | Affiliate analytics | `get_affiliate_portal_stats`, `get_project_affiliate_total_stats`, `get_project_affiliates_breakdown` |
 | Managed affiliates (project API key) | `get_project_affiliate_public`, `create_project_affiliate_public`, `update_project_affiliate_public` |
@@ -90,6 +91,15 @@ For `create_trigger`, `delete_trigger`, `update_trigger`, `create_incentive`, `d
 
 Before `create_trigger` / `create_incentive`, call `list_trigger_types` (and `list_chains` / `list_payout_schemas` as needed) and collect all required fields from the user.
 
+## Token-holder price reference (before `create_trigger`)
+
+For `token-holder`, `liquidity-pool-v2`, `balancer`, `solana-token-holder`, `fogo-token-holder`:
+
+1. `list_price_references` with the chain (`chain_identifier` from `list_chains`, e.g. `ethereum`).
+2. If `token_address` is in `results[].identifier` (EVM: case-insensitive) → `volume_currency_expression` = `token_address`.
+3. If **not** listed → ask the user: stablecoin or variable-price? Decimals (6 or 18)? Pick a reference from `results` with matching decimals (e.g. 18-decimal stablecoin on Ethereum → DAI `0x6b175474e89094c44da98b954eedeac495271d0f`).
+4. `create_trigger` with that `volume_currency_expression`. Wrong value → HTTP 201 but trigger never prices volume correctly.
+
 ## Replace token on a token-holder trigger
 
 The dashboard cannot change `context.token_address` after create; neither can `update_trigger`. Follow this playbook:
@@ -98,7 +108,7 @@ The dashboard cannot change `context.token_address` after create; neither can `u
 2. Tell the user the token is not editable in place. Ask whether they want to **delete the old trigger** and create a new one, or **only create a new trigger**.
 3. **Never** call `delete_trigger` without explicit user approval.
 4. If deleting: `list_incentives` → for each incentive using this `draft_trigger_id`, `delete_incentive` (dry_run → confirmed) → then `delete_trigger` (dry_run → confirmed).
-5. `create_trigger` with the same config except the new `context.token_address` (and updated `volume_currency_expression` if needed).
+5. `list_price_references` if needed, then `create_trigger` with the new `context.token_address` and correct `volume_currency_expression` (see **Token-holder price reference**).
 6. If `delete_trigger` fails with HTTP 422 (trigger still linked): explain that incentives must be removed first, **or** skip delete and only `create_trigger` the new token tracker; user can re-link incentives manually.
 
 Do not “fix” a wrong token by PATCHing only `currency_expression` / `volume_currency_expression` — that leaves `contracts[].address` and `context.token_address` unchanged.
