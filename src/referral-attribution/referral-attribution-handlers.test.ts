@@ -21,10 +21,10 @@ describe('isAlreadyRemovedMessage', () => {
   it('returns true for known no-op 422 messages', () => {
     expect(isAlreadyRemovedMessage('User has not used this referral code')).toBe(true);
     expect(isAlreadyRemovedMessage('User referrer relationship not found')).toBe(true);
-    expect(isAlreadyRemovedMessage('User referrer relationship does not match the referral code')).toBe(true);
   });
 
-  it('returns false for other errors', () => {
+  it('returns false for mismatch and other errors', () => {
+    expect(isAlreadyRemovedMessage('User referrer relationship does not match the referral code')).toBe(false);
     expect(isAlreadyRemovedMessage('Referral code not found')).toBe(false);
   });
 });
@@ -90,6 +90,15 @@ describe('buildDeleteUserReferrerPath', () => {
       user_identifier_type: 'evm_address',
     });
     expect(path).toBe('/api/v1/user-referrers?user_identifier=0xu&user_identifier_type=evm_address');
+  });
+
+  it('includes force when true', () => {
+    const path = buildDeleteUserReferrerPath({
+      user_identifier: '0xu',
+      user_identifier_type: 'evm_address',
+      force: true,
+    });
+    expect(path).toContain('force=true');
   });
 });
 
@@ -223,6 +232,13 @@ describe('runRemoveUserFromReferralCode', () => {
 
   it('rethrows other 422 errors', async () => {
     const deleteJson = vi.fn().mockRejectedValue(new ApiRequestError('Referral code not found', 422));
+    await expect(runRemoveUserFromReferralCode({ deleteJson } as never, 'key', { ...baseInput, confirmed: true })).rejects.toBeInstanceOf(
+      ApiRequestError,
+    );
+  });
+
+  it('rethrows mismatch 422 errors instead of treating them as already removed', async () => {
+    const deleteJson = vi.fn().mockRejectedValue(new ApiRequestError('User referrer relationship does not match the referral code', 422));
     await expect(runRemoveUserFromReferralCode({ deleteJson } as never, 'key', { ...baseInput, confirmed: true })).rejects.toBeInstanceOf(
       ApiRequestError,
     );
