@@ -10,11 +10,7 @@ import type {
   UseReferralCodeInput,
 } from '../tools/tool-schemas.js';
 
-const ALREADY_REMOVED_MESSAGES = new Set([
-  'User has not used this referral code',
-  'User referrer relationship not found',
-  'User referrer relationship does not match the referral code',
-]);
+const ALREADY_REMOVED_MESSAGES = new Set(['User has not used this referral code', 'User referrer relationship not found']);
 
 export function isAlreadyRemovedMessage(message: string): boolean {
   return ALREADY_REMOVED_MESSAGES.has(message);
@@ -69,7 +65,7 @@ export function buildGetUserReferrerPath(query: { user_identifier: string; user_
   return qs ? `/api/v1/user/referrer?${qs}` : '/api/v1/user/referrer';
 }
 
-export function buildDeleteUserReferrerPath(query: { user_identifier: string; user_identifier_type: string }): string {
+export function buildDeleteUserReferrerPath(query: { user_identifier: string; user_identifier_type: string; force?: boolean }): string {
   const qs = buildNestQueryString(query);
   return qs ? `/api/v1/user-referrers?${qs}` : '/api/v1/user-referrers';
 }
@@ -94,6 +90,7 @@ export async function runDeleteUserReferrer(api: FuulApiClient, bearer: string, 
   const path = buildDeleteUserReferrerPath({
     user_identifier: input.user_identifier,
     user_identifier_type: input.user_identifier_type,
+    ...(input.force === true ? { force: true } : {}),
   });
 
   if (input.dry_run === true) {

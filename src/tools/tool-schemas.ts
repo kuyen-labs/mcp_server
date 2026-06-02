@@ -552,6 +552,10 @@ export type UpdateUserReferrerInput = z.infer<typeof updateUserReferrerInputSche
 export const deleteUserReferrerFieldsSchema = projectApiKeyBearerFieldsSchema.merge(writeConfirmationFieldsSchema).extend({
   user_identifier: z.string().min(1),
   user_identifier_type: identifierTypeForReferrerSchema,
+  force: z
+    .boolean()
+    .optional()
+    .describe('When true, delete matching referral_code_uses too (not only orphaned rows). Default false keeps 422 for aligned redemptions.'),
 });
 
 export const deleteUserReferrerInputSchema = deleteUserReferrerFieldsSchema;

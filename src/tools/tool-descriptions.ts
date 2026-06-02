@@ -255,9 +255,9 @@ export const UPDATE_USER_REFERRER_DESCRIPTION =
   ' dry_run then confirmed. Example dry_run: {"user_identifier":"0xUser...","user_identifier_type":"evm_address","referrer_identifier":"0xKol...","referrer_identifier_type":"evm_address","dry_run":true}.';
 
 export const DELETE_USER_REFERRER_DESCRIPTION =
-  'Remove admin-imported user_referrers row: DELETE /api/v1/user-referrers?user_identifier=&user_identifier_type=. Clears PUT/update_user_referrer assignments (including rows with referral_code_id set but no referral_code_uses). Does NOT touch referral_code_uses or actual_uses. If the user has referral code redemptions in this project, API returns 422 — use remove_user_from_referral_code instead. Maps 422 "User referrer relationship not found" to {already_removed:true} for idempotent retries. Requires service_role project API key.' +
+  'Remove user_referrers row: DELETE /api/v1/user-referrers?user_identifier=&user_identifier_type=. Automatically deletes orphaned referral_code_uses (stale redemptions that no longer match the current UR) and decrements actual_uses. If the user has matching referral code redemptions, API returns 422 unless force=true (deletes all uses + UR). Maps 422 "User referrer relationship not found" to {already_removed:true} for idempotent retries. Requires service_role project API key.' +
   PROJECT_API_KEY_HINT +
-  ' dry_run then confirmed. Example dry_run: {"user_identifier":"0xUser...","user_identifier_type":"evm_address","dry_run":true}.';
+  ' dry_run then confirmed. Example dry_run: {"user_identifier":"0xUser...","user_identifier_type":"evm_address","force":true,"dry_run":true}.';
 
 export const USE_REFERRAL_CODE_DESCRIPTION =
   'Redeem a referral code for a user: PATCH /api/v1/referral_codes/:code/use. Creates referral_code_uses, increments actual_uses, sets user_referrers with source=code_redemption (GET /referral_codes/status → referred:true). Referrer is the code owner (do not pass referrer_identifier). Requires user has no existing referrer unless service_role idempotent replay of the same code. No wallet signature with service_role.' +
