@@ -68,6 +68,24 @@ export const GET_INCENTIVE_DESCRIPTION =
   'Use draft_trigger_id from triggers[] for PATCH update_trigger; published_trigger_id for live/prod comparisons (e.g. SQL on project.metadata_id). ' +
   'Example: {"project_id":"<uuid>","conversion_id":"<uuid>"}.';
 
+export const GET_INCENTIVE_STATS_DESCRIPTION =
+  'Per-incentive performance snapshot: unique_active_users, total_volume, revenue, total_earnings (multi-currency), vs project median, and WoW/MoM deltas. ' +
+  'GET /api/v1/projects/:projectId/incentives/:conversionId/stats. dateRange: 7d|30d|90d|MTD|QTD|custom|all (custom needs dateFrom+dateTo). ' +
+  'Use with get_project_incentives_breakdown to rank incentives; use get_incentive_history for time-series. ' +
+  'Example: {"project_id":"<uuid>","conversion_id":"<uuid>","dateRange":"30d"}.';
+
+export const GET_PROJECT_INCENTIVES_BREAKDOWN_DESCRIPTION =
+  'Ranks all project incentives by a metric with metric_vs_median and WoW/MoM deltas on the sorted metric. ' +
+  'GET /api/v1/projects/:projectId/incentives/breakdown. sortBy: unique_users|volume|earnings|revenue; sortOrder asc|desc. ' +
+  'Find bottom performers: sortBy unique_users, sortOrder asc. Compare month-over-month: dateRange MTD. ' +
+  'Example: {"project_id":"<uuid>","dateRange":"30d","sortBy":"volume","sortOrder":"desc"}.';
+
+export const GET_INCENTIVE_HISTORY_DESCRIPTION =
+  'Time-series per incentive (daily|weekly|monthly buckets): unique_users, volume, earnings, revenue per bucket. ' +
+  'GET /api/v1/projects/:projectId/incentives/:conversionId/history. Requires bounded range: dateFrom+dateTo or preset 7d/30d/90d/MTD/QTD/custom. ' +
+  'Detect boost decay, flat activity, or near-zero impact before removing an incentive. ' +
+  'Example: {"project_id":"<uuid>","conversion_id":"<uuid>","granularity":"weekly","dateFrom":"2026-04-01","dateTo":"2026-05-31"}.';
+
 export const GET_TRIGGER_DESCRIPTION =
   'Gets one trigger row by UUID: GET /api/v1/projects/:projectId/triggers/:triggerId. Returns whichever row that UUID points to (draft or published copy). ' +
   'Does not resolve project.metadata_id. Prefer get_project or get_incentive triggers[] for draft_trigger_id vs published_trigger_id by ref. ' +

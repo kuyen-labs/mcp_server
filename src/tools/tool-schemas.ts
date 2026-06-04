@@ -245,6 +245,44 @@ export type PayoutBatchActionInput = z.infer<typeof payoutBatchActionInputSchema
 
 const dateRangePresetSchema = z.enum(['7d', '30d', '90d', 'MTD', 'QTD', 'custom', 'all']);
 
+const incentiveBreakdownSortBySchema = z.enum(['unique_users', 'volume', 'earnings', 'revenue']);
+const incentiveHistoryGranularitySchema = z.enum(['daily', 'weekly', 'monthly']);
+
+/** GET .../incentives/:conversionId/stats */
+export const getIncentiveStatsSchema = z.object({
+  project_id: uuid,
+  conversion_id: uuid.describe('Incentive (conversion) UUID'),
+  dateRange: dateRangePresetSchema.optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+});
+
+export type GetIncentiveStatsInput = z.infer<typeof getIncentiveStatsSchema>;
+
+/** GET .../incentives/breakdown */
+export const getProjectIncentivesBreakdownSchema = z.object({
+  project_id: uuid,
+  dateRange: dateRangePresetSchema.optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  sortBy: incentiveBreakdownSortBySchema.optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
+});
+
+export type GetProjectIncentivesBreakdownInput = z.infer<typeof getProjectIncentivesBreakdownSchema>;
+
+/** GET .../incentives/:conversionId/history */
+export const getIncentiveHistorySchema = z.object({
+  project_id: uuid,
+  conversion_id: uuid.describe('Incentive (conversion) UUID'),
+  granularity: incentiveHistoryGranularitySchema,
+  dateRange: dateRangePresetSchema.optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+});
+
+export type GetIncentiveHistoryInput = z.infer<typeof getIncentiveHistorySchema>;
+
 /** GET .../affiliate-portal/stats — matches fuul-server GetAffiliateStatsDto query names. */
 export const getAffiliatePortalStatsSchema = z.object({
   project_id: uuid,
