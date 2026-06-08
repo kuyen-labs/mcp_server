@@ -16,6 +16,7 @@ import { runListPriceReferences, runResolveTokenHolderPriceReference } from './c
 import { runCheckEventStatus, runSendBatchEvents, runSendEvent } from './events/events-handlers.js';
 import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-api-client.js';
 import { MissingProjectApiKeyError, resolveProjectApiKeyBearer } from './http/project-api-key-bearer.js';
+import { incentiveHistoryPath, incentiveStatsPath, projectIncentivesBreakdownPath } from './incentive-analytics/incentive-analytics-queries.js';
 import { enrichPayoutSchemasResponse } from './incentives/incentive-create-payload-guide.js';
 import { runCreateIncentive, runDeleteIncentive } from './incentives/incentive-write-handlers.js';
 import { MetadataService } from './metadata/metadata-service.js';
@@ -46,10 +47,13 @@ import {
   DELETE_USER_REFERRER_DESCRIPTION,
   GET_AFFILIATE_PORTAL_STATS_DESCRIPTION,
   GET_INCENTIVE_DESCRIPTION,
+  GET_INCENTIVE_HISTORY_DESCRIPTION,
+  GET_INCENTIVE_STATS_DESCRIPTION,
   GET_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
   GET_PROJECT_AFFILIATE_TOTAL_STATS_DESCRIPTION,
   GET_PROJECT_AFFILIATES_BREAKDOWN_DESCRIPTION,
   GET_PROJECT_DESCRIPTION,
+  GET_PROJECT_INCENTIVES_BREAKDOWN_DESCRIPTION,
   GET_TRIGGER_DESCRIPTION,
   GET_USER_REFERRER_DESCRIPTION,
   LIST_CHAINS_DESCRIPTION,
@@ -92,10 +96,13 @@ import {
   deleteUserReferrerFieldsSchema,
   deleteUserReferrerInputSchema,
   getAffiliatePortalStatsSchema,
+  getIncentiveHistorySchema,
   getIncentiveInputSchema,
+  getIncentiveStatsSchema,
   getProjectAffiliatePublicInputSchema,
   getProjectAffiliatesBreakdownSchema,
   getProjectAffiliateTotalStatsSchema,
+  getProjectIncentivesBreakdownSchema,
   getTriggerInputSchema,
   getUserReferrerFieldsSchema,
   getUserReferrerInputSchema,
@@ -290,6 +297,41 @@ async function main(): Promise<void> {
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to load incentive');
+    }
+  });
+
+  server.tool('get_incentive_stats', GET_INCENTIVE_STATS_DESCRIPTION, getIncentiveStatsSchema.shape, async (args) => {
+    try {
+      const parsed = getIncentiveStatsSchema.parse(args);
+      const data = await withTimeout(api.getJson(incentiveStatsPath(parsed)), toolTimeoutMs, 'get_incentive_stats');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to load incentive stats');
+    }
+  });
+
+  server.tool(
+    'get_project_incentives_breakdown',
+    GET_PROJECT_INCENTIVES_BREAKDOWN_DESCRIPTION,
+    getProjectIncentivesBreakdownSchema.shape,
+    async (args) => {
+      try {
+        const parsed = getProjectIncentivesBreakdownSchema.parse(args);
+        const data = await withTimeout(api.getJson(projectIncentivesBreakdownPath(parsed)), toolTimeoutMs, 'get_project_incentives_breakdown');
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      } catch (e) {
+        return toolErrorPayload(e, 'Failed to load project incentives breakdown');
+      }
+    },
+  );
+
+  server.tool('get_incentive_history', GET_INCENTIVE_HISTORY_DESCRIPTION, getIncentiveHistorySchema.shape, async (args) => {
+    try {
+      const parsed = getIncentiveHistorySchema.parse(args);
+      const data = await withTimeout(api.getJson(incentiveHistoryPath(parsed)), toolTimeoutMs, 'get_incentive_history');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to load incentive history');
     }
   });
 
