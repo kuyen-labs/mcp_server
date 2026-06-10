@@ -144,16 +144,3 @@ function buildResolvedReason(tokenKind: TokenKind, decimals: TokenDecimals, assi
     `(e.g. 18-decimal stablecoin on Ethereum → DAI). Put this address in context.volume_currency_expression, not the held token address.`
   );
 }
-
-/** chain_id (EVM) → currencies API chain_identifier */
-export const CHAIN_ID_TO_IDENTIFIER: Record<number, string> = {
-  1: 'ethereum',
-  10: 'optimistic-ethereum',
-  137: 'polygon',
-  42161: 'arbitrum',
-  8453: 'base',
-};
-
-export function chainIdentifierFromChainId(chainId: number): string | null {
-  return CHAIN_ID_TO_IDENTIFIER[chainId] ?? null;
-}

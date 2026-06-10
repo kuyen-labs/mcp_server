@@ -1,5 +1,5 @@
+import { chainIdentifierFromChainId, normalizeCurrencyChainIdentifier } from '../currencies/currency-chain-identifier.js';
 import { fetchPriceReferences } from '../currencies/fetch-price-references.js';
-import { chainIdentifierFromChainId } from '../currencies/resolve-token-holder-price-reference.js';
 import type { FuulApiClient } from '../http/fuul-api-client.js';
 import { isTokenListedAsPriceReference, normalizeEvmAddress, TOKEN_HOLDER_TYPES_WITH_PRICE_REF } from './price-reference-guide.js';
 
@@ -60,7 +60,7 @@ export async function assertTokenHolderPriceReferenceValid(api: FuulApiClient, t
 
 function resolveChainFromContext(context: Record<string, unknown>): string | null {
   if (typeof context.chain_identifier === 'string' && context.chain_identifier !== '') {
-    return context.chain_identifier;
+    return normalizeCurrencyChainIdentifier(context.chain_identifier);
   }
   if (typeof context.chain_id === 'number') {
     return chainIdentifierFromChainId(context.chain_id);

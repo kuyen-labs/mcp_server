@@ -1,4 +1,5 @@
 import type { FuulApiClient } from '../http/fuul-api-client.js';
+import { normalizeCurrencyChainIdentifier } from './currency-chain-identifier.js';
 
 const CURRENCIES_PATH = '/api/v1/currencies';
 
@@ -14,7 +15,7 @@ export async function fetchPriceReferences(api: FuulApiClient, chainIdentifier: 
   const data = await api.getJson(CURRENCIES_PATH, {
     query: {
       price_reference: true,
-      chain_identifier: chainIdentifier,
+      chain_identifier: normalizeCurrencyChainIdentifier(chainIdentifier),
       page: 1,
       page_size: 100,
     },
