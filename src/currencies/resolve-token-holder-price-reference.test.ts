@@ -9,28 +9,28 @@ const ethereumRefs: PriceReferenceRow[] = [
     id: '1',
     name: 'DAI',
     identifier: DAI_ETHEREUM,
-    chain_identifier: 'ethereum',
+    chain_identifier: '1',
     decimals: 18,
   },
   {
     id: '2',
     name: 'USDC',
     identifier: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-    chain_identifier: 'ethereum',
+    chain_identifier: '1',
     decimals: 6,
   },
   {
     id: '3',
     name: 'WETH',
     identifier: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
-    chain_identifier: 'ethereum',
+    chain_identifier: '1',
     decimals: 18,
   },
 ];
 
 describe('resolveTokenHolderPriceReference', () => {
   it('listed token uses same address', () => {
-    const result = resolveTokenHolderPriceReference({ token_address: DAI_ETHEREUM, chain_identifier: 'ethereum' }, ethereumRefs);
+    const result = resolveTokenHolderPriceReference({ token_address: DAI_ETHEREUM, chain_identifier: '1' }, ethereumRefs);
     expect(result.status).toBe('listed_use_same_address');
     expect(result.volume_currency_expression).toBe(DAI_ETHEREUM);
     expect(result.token_is_listed_as_price_reference).toBe(true);
@@ -47,7 +47,7 @@ describe('resolveTokenHolderPriceReference', () => {
     const result = resolveTokenHolderPriceReference(
       {
         token_address: EXAMPLE_UNKNOWN_STABLECOIN_18D,
-        chain_identifier: 'ethereum',
+        chain_identifier: '1',
         token_kind: 'stablecoin',
         decimals: 18,
       },
@@ -62,7 +62,7 @@ describe('resolveTokenHolderPriceReference', () => {
     const result = resolveTokenHolderPriceReference(
       {
         token_address: EXAMPLE_UNKNOWN_STABLECOIN_18D,
-        chain_identifier: 'ethereum',
+        chain_identifier: '1',
         token_kind: 'stablecoin',
         decimals: 6,
       },
@@ -75,7 +75,7 @@ describe('resolveTokenHolderPriceReference', () => {
     const result = resolveTokenHolderPriceReference(
       {
         token_address: EXAMPLE_UNKNOWN_STABLECOIN_18D,
-        chain_identifier: 'ethereum',
+        chain_identifier: '1',
         token_kind: 'variable',
         decimals: 18,
       },

@@ -10,20 +10,26 @@ export const listProjectsInputSchema = z.object({
 });
 
 export const listPriceReferencesInputSchema = z.object({
-  chain_identifier: z.string().optional().describe('Filter by chain identifier (e.g. "ethereum", "arbitrum"). Match list_chains / currency API.'),
+  chain_identifier: z
+    .string()
+    .optional()
+    .describe('Filter by currencies API chain_identifier. EVM: numeric string (e.g. "1", "42161"). Slug aliases like "ethereum" are accepted.'),
 });
 
 export type ListPriceReferencesInput = z.infer<typeof listPriceReferencesInputSchema>;
 
 export const resolveTokenHolderPriceReferenceFieldsSchema = z.object({
   token_address: z.string().min(1).describe('Held token contract address (EVM 0x... or chain-native mint).'),
-  chain_identifier: z.string().optional().describe('Chain for currencies API (e.g. "ethereum"). Prefer with list_chains.'),
+  chain_identifier: z
+    .string()
+    .optional()
+    .describe('Currencies API chain_identifier. EVM: numeric string (e.g. "1"). Slug aliases like "ethereum" accepted. Prefer chain_id when known.'),
   chain_id: z.coerce
     .number()
     .int()
     .positive()
     .optional()
-    .describe('EVM chain_id alternative (e.g. 1 → ethereum). Used when chain_identifier omitted.'),
+    .describe('EVM chain_id (e.g. 1 for Ethereum). Preferred over chain_identifier when creating token-holder triggers.'),
   token_kind: z.enum(['stablecoin', 'variable']).optional().describe('Required when token is not listed: stablecoin or variable-price.'),
   decimals: z
     .union([z.literal(6), z.literal(18)])

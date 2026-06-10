@@ -1,8 +1,9 @@
 import type { FuulApiClient } from '../http/fuul-api-client.js';
 import type { ListPriceReferencesInput, ResolveTokenHolderPriceReferenceInput } from '../tools/tool-schemas.js';
 import { TOKEN_HOLDER_PRICE_REFERENCE_GUIDE } from '../triggers/price-reference-guide.js';
+import { chainIdentifierFromChainId, normalizeCurrencyChainIdentifier } from './currency-chain-identifier.js';
 import { fetchPriceReferences } from './fetch-price-references.js';
-import { chainIdentifierFromChainId, resolveTokenHolderPriceReference } from './resolve-token-holder-price-reference.js';
+import { resolveTokenHolderPriceReference } from './resolve-token-holder-price-reference.js';
 
 const CURRENCIES_PATH = '/api/v1/currencies';
 
@@ -14,7 +15,7 @@ export async function runListPriceReferences(api: FuulApiClient, input: ListPric
   };
 
   if (input.chain_identifier != null && input.chain_identifier !== '') {
-    query.chain_identifier = input.chain_identifier;
+    query.chain_identifier = normalizeCurrencyChainIdentifier(input.chain_identifier);
   }
 
   const data = await api.getJson(CURRENCIES_PATH, { query });
@@ -48,15 +49,12 @@ export async function runResolveTokenHolderPriceReference(api: FuulApiClient, in
 
 function resolveChainIdentifier(input: ResolveTokenHolderPriceReferenceInput): string {
   if (input.chain_identifier != null && input.chain_identifier !== '') {
-    return input.chain_identifier;
+    return normalizeCurrencyChainIdentifier(input.chain_identifier);
   }
   if (input.chain_id != null) {
-    const mapped = chainIdentifierFromChainId(input.chain_id);
-    if (mapped) {
-      return mapped;
-    }
+    return chainIdentifierFromChainId(input.chain_id);
   }
-  throw new Error('Provide chain_identifier (e.g. "ethereum") or a supported chain_id (e.g. 1).');
+  throw new Error('Provide chain_identifier (e.g. "1" or "ethereum") or chain_id (e.g. 1).');
 }
 
 export function enrichPriceReferencesResponse(raw: unknown): unknown {

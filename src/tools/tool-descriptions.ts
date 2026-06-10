@@ -30,18 +30,18 @@ export const RESOLVE_TOKEN_HOLDER_PRICE_REFERENCE_DESCRIPTION =
   'Step 2: if status needs_user_input, ask: stablecoin or variable? decimals 6 or 18? Then call again with token_kind and decimals. ' +
   'Step 3: status resolved returns assigned volume_currency_expression (e.g. stablecoin + 18 decimals on Ethereum → DAI). Use that in create_trigger. ' +
   'create_trigger rejects unlisted tokens when volume_currency_expression equals token_address. ' +
-  'Example listed: {"token_address":"0x6b175474e89094c44da98b954eedeac495271d0f","chain_identifier":"ethereum"}. ' +
-  'Example assign: {"token_address":"0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD","chain_identifier":"ethereum","token_kind":"stablecoin","decimals":18}.';
+  'Example listed: {"token_address":"0x6b175474e89094c44da98b954eedeac495271d0f","chain_id":1}. ' +
+  'Example assign: {"token_address":"0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD","chain_id":1,"token_kind":"stablecoin","decimals":18}.';
 
 export const LIST_PRICE_REFERENCES_DESCRIPTION =
   'Lists currencies usable as price references for token-holder triggers: GET /api/v1/currencies?price_reference=true&page_size=100. ' +
-  'Optional chain_identifier (e.g. "ethereum") filters to that chain. Each result includes identifier (use as volume_currency_expression), name, decimals, chain_identifier. ' +
+  'Optional chain_identifier filters to that chain. EVM uses numeric strings (e.g. "1" for Ethereum); slug aliases like "ethereum" are accepted. Each result includes identifier (use as volume_currency_expression), name, decimals, chain_identifier. ' +
   'REQUIRED before create_trigger when the held token may not be a known asset (not on CoinGecko/CMC). ' +
   'Workflow: (1) Call with the trigger chain. (2) If token_address is in results[] (EVM: compare identifier case-insensitively), set volume_currency_expression = token_address. ' +
   '(3) If NOT listed, ask the user: stablecoin or variable-price? How many decimals (6 or 18)? Pick a reference from results with matching decimals. ' +
   'Examples: DAI 0x6b175474e89094c44da98b954eedeac495271d0f on Ethereum is listed — use same address. ' +
   'Unknown 18-decimal stablecoin 0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD on Ethereum is NOT listed — use DAI as volume_currency_expression, not the token address. ' +
-  'Wrong reference → trigger creates (201) but never prices volume correctly. Params: {} or {"chain_identifier":"ethereum"}.';
+  'Wrong reference → trigger creates (201) but never prices volume correctly. Params: {} or {"chain_identifier":"1"} or {"chain_id":1 via resolve_token_holder_price_reference}.';
 
 export const LIST_PAYOUT_SCHEMAS_DESCRIPTION =
   'Lists payout schema metadata from GET /public-api/v1/metadata/payout-schemas (cached), enriched for create_incentive. ' +

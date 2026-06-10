@@ -19,7 +19,15 @@ describe('runListPriceReferences', () => {
     const getJson = vi.fn().mockResolvedValue({ results: [] });
     await runListPriceReferences({ getJson } as never, { chain_identifier: 'ethereum' });
     expect(getJson).toHaveBeenCalledWith('/api/v1/currencies', {
-      query: expect.objectContaining({ chain_identifier: 'ethereum' }),
+      query: expect.objectContaining({ chain_identifier: '1' }),
+    });
+  });
+
+  it('passes numeric chain_identifier unchanged', async () => {
+    const getJson = vi.fn().mockResolvedValue({ results: [] });
+    await runListPriceReferences({ getJson } as never, { chain_identifier: '42161' });
+    expect(getJson).toHaveBeenCalledWith('/api/v1/currencies', {
+      query: expect.objectContaining({ chain_identifier: '42161' }),
     });
   });
 });
