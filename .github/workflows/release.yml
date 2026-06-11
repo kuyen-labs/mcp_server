@@ -16,10 +16,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Fetch tags
         run: git fetch --tags --force
@@ -39,9 +47,9 @@ jobs:
       - name: Test
         run: npm run test:ci
 
-      # Filename must match npm Trusted Publishing: e.g. .github/workflows/release.yml (not fuul-sdk’s versioning.yml).
+      # Filename must match npm Trusted Publishing: e.g. .github/workflows/release.yml (not fuul-sdk's versioning.yml).
       - name: Release
         if: github.event_name == 'push'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: npx semantic-release
