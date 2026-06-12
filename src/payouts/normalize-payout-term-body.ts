@@ -3,11 +3,26 @@
  * validates on PATCH — mirrors fuul-webapp mapToCreatePayoutTermDTO for variable rewards.
  */
 
+import { type PayoutTermValidationError, validatePayoutTermAmounts } from './payout-term-amounts-validation.js';
+
 const VARIABLE_AMOUNT_ALIASES = ['referral_amount', 'referrer_amount', 'referrer2_amount', 'referrer3_amount', 'referrer4_amount'] as const;
 
 const FIXED_AMOUNT_FIELDS = ['referral_amount', 'referrer_amount', 'referrer2_amount', 'referrer3_amount', 'referrer4_amount'] as const;
 
 const PAYOUT_GROUP_AMOUNT_FIELDS = ['affiliate_amount', 'end_user_amount'] as const;
+
+const TERM_AMOUNT_FIELDS = [
+  'referral_amount',
+  'referrer_amount',
+  'referral_amount_percentage',
+  'referrer_amount_percentage',
+  'referrer2_amount',
+  'referrer3_amount',
+  'referrer4_amount',
+  'referrer2_amount_percentage',
+  'referrer3_amount_percentage',
+  'referrer4_amount_percentage',
+] as const;
 
 export type AmountRoundingNotice = {
   field: string;
@@ -21,6 +36,22 @@ const ALIAS_TO_PERCENTAGE: ReadonlyArray<readonly [string, string]> = [
   ['referrer2_amount', 'referrer2_amount_percentage'],
   ['referrer3_amount', 'referrer3_amount_percentage'],
   ['referrer4_amount', 'referrer4_amount_percentage'],
+];
+
+const GROUP_VARIABLE_ALIAS_TO_PERCENTAGE: ReadonlyArray<readonly [string, string]> = [
+  ['referral_amount', 'end_user_amount_percentage'],
+  ['referrer_amount', 'affiliate_amount_percentage'],
+  ['referrer2_amount', 'affiliate2_amount_percentage'],
+  ['referrer3_amount', 'affiliate3_amount_percentage'],
+  ['referrer4_amount', 'affiliate4_amount_percentage'],
+];
+
+const GROUP_FIXED_ALIAS_TO_AMOUNT: ReadonlyArray<readonly [string, string]> = [
+  ['referral_amount', 'end_user_amount'],
+  ['referrer_amount', 'affiliate_amount'],
+  ['referrer2_amount', 'affiliate2_amount'],
+  ['referrer3_amount', 'affiliate3_amount'],
+  ['referrer4_amount', 'affiliate4_amount'],
 ];
 
 function toNumber(value: unknown): number | undefined {
@@ -45,6 +76,11 @@ function isFixedCalculationStrategy(body: Record<string, unknown>): boolean {
     return false;
   }
   return String(strategy).toLowerCase() === 'fixed';
+}
+
+function hasTierType(body: Record<string, unknown>): boolean {
+  const tierType = body.tier_type;
+  return tierType !== undefined && tierType !== null && String(tierType).trim() !== '';
 }
 
 function isPointType(body: Record<string, unknown>): boolean {
@@ -97,6 +133,67 @@ function resolvePercentageFromAlias(aliasValue: number, percentageValue: number 
   return percentageValue;
 }
 
+function stripTermLevelAmountFields(result: Record<string, unknown>): void {
+  for (const field of TERM_AMOUNT_FIELDS) {
+    delete result[field];
+  }
+}
+
+function normalizeTieredPayoutGroup(
+  group: Record<string, unknown>,
+  unitMode: boolean,
+  isVariable: boolean,
+  isFixed: boolean,
+): Record<string, unknown> {
+  const groupObj = { ...group };
+
+  if (isVariable) {
+    for (const [aliasKey, percentageKey] of GROUP_VARIABLE_ALIAS_TO_PERCENTAGE) {
+      const aliasValue = toNumber(groupObj[aliasKey]);
+      if (aliasValue === undefined) {
+        continue;
+      }
+      const existingPercentage = toNumber(groupObj[percentageKey]);
+      groupObj[percentageKey] = resolvePercentageFromAlias(aliasValue, existingPercentage, unitMode);
+      delete groupObj[aliasKey];
+    }
+  }
+
+  if (isFixed) {
+    for (const [aliasKey, amountKey] of GROUP_FIXED_ALIAS_TO_AMOUNT) {
+      const aliasValue = groupObj[aliasKey];
+      if (aliasValue === undefined || aliasValue === null || aliasValue === '') {
+        continue;
+      }
+      if (groupObj[amountKey] === undefined || groupObj[amountKey] === null || groupObj[amountKey] === '') {
+        groupObj[amountKey] = String(aliasValue);
+      }
+      delete groupObj[aliasKey];
+    }
+  }
+
+  return groupObj;
+}
+
+function normalizeTieredPayoutTermBody(body: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...body };
+  const isVariable = isVariableCalculationStrategy(result);
+  const isFixed = isFixedCalculationStrategy(result);
+  const unitMode = !isVariablePercentageMode(result.base_currency);
+
+  if (Array.isArray(result.payout_groups)) {
+    result.payout_groups = (result.payout_groups as unknown[]).map((group) => {
+      if (group === null || typeof group !== 'object' || Array.isArray(group)) {
+        return group;
+      }
+      return normalizeTieredPayoutGroup(group as Record<string, unknown>, unitMode, isVariable, isFixed);
+    });
+  }
+
+  stripTermLevelAmountFields(result);
+  return result;
+}
+
 export function roundPointIntegerAmounts(body: Record<string, unknown>): {
   body: Record<string, unknown>;
   amountRounding: AmountRoundingNotice[];
@@ -111,8 +208,9 @@ export function roundPointIntegerAmounts(body: Record<string, unknown>): {
   const isVariable = isVariableCalculationStrategy(result);
   const isFixed = isFixedCalculationStrategy(result);
   const isPoolOrRank = isPoolOrRankScheme(result);
+  const isTiered = hasTierType(result);
 
-  if (isFixed && !isVariable) {
+  if (isFixed && !isVariable && !isTiered) {
     for (const field of FIXED_AMOUNT_FIELDS) {
       roundFieldIfDecimal(result, field, amountRounding);
     }
@@ -180,11 +278,14 @@ export function roundPointIntegerAmounts(body: Record<string, unknown>): {
 export function preparePayoutTermBodyForWrite(body: Record<string, unknown>): {
   body: Record<string, unknown>;
   amountRounding: AmountRoundingNotice[];
+  validationErrors: PayoutTermValidationError[];
 } {
   const { body: roundedBody, amountRounding } = roundPointIntegerAmounts(body);
+  const normalized = normalizePayoutTermBodyForPatch(roundedBody);
   return {
-    body: normalizePayoutTermBodyForPatch(roundedBody),
+    body: normalized,
     amountRounding,
+    validationErrors: validatePayoutTermAmounts(normalized),
   };
 }
 
@@ -200,6 +301,10 @@ export function attachAmountRounding<T extends Record<string, unknown>>(
 }
 
 export function normalizePayoutTermBodyForPatch(body: Record<string, unknown>): Record<string, unknown> {
+  if (hasTierType(body)) {
+    return normalizeTieredPayoutTermBody(body);
+  }
+
   if (!isVariableCalculationStrategy(body)) {
     return body;
   }

@@ -223,6 +223,21 @@ export const deleteIncentiveInputSchema = deleteIncentiveFieldsSchema;
 
 export type DeleteIncentiveInput = z.infer<typeof deleteIncentiveInputSchema>;
 
+export const updateIncentiveTriggersFieldsSchema = writeConfirmationFieldsSchema.extend({
+  project_id: uuid,
+  conversion_id: uuid.describe('Draft incentive UUID (draft_conversion_id from list_incentives or get_project).'),
+  trigger_ids: z.array(uuid).min(1).describe('Draft trigger UUIDs for the full replacement trigger set (resolved to trigger_refs).'),
+  name: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Conversion name on the wire (required by PATCH /conversions). Omit to reuse the current incentive name from GET.'),
+});
+
+export const updateIncentiveTriggersInputSchema = updateIncentiveTriggersFieldsSchema;
+
+export type UpdateIncentiveTriggersInput = z.infer<typeof updateIncentiveTriggersInputSchema>;
+
 export const listPayoutsPendingApprovalSchema = z.object({
   project_id: uuid,
   page: z.coerce.number().int().positive().optional().describe('Forwarded as ?page='),
