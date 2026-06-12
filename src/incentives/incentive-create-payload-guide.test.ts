@@ -16,8 +16,8 @@ describe('enrichPayoutSchemasResponse', () => {
       'fixed-reward',
       'variable-reward',
       'proportional-pool',
-      'leaderboard',
       'tiered-audience-boost',
+      'leaderboard',
     ]);
     expect(enriched.reward_types[0].create_payload_example.payout_terms).toHaveLength(1);
 
