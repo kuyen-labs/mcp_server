@@ -174,6 +174,73 @@ describe('roundPointIntegerAmounts', () => {
   });
 });
 
+describe('normalizePayoutTermBodyForPatch tiered audience boost', () => {
+  it('maps group referral_amount aliases and strips term-level amounts (Dre Money pattern)', () => {
+    const input = {
+      scheme: 'pay-per-attribution',
+      calculation_strategy: 'variable',
+      payee_type: 'end-user',
+      base_currency: 'none',
+      tier_type: 'audience',
+      referral_amount_percentage: 0.3,
+      payout_groups: [
+        {
+          end_user_amount_percentage: 0.3,
+        },
+        {
+          audience_id: '11111111-1111-4111-8111-111111111111',
+          referral_amount: 0.45,
+        },
+      ],
+    };
+
+    expect(normalizePayoutTermBodyForPatch(input)).toEqual({
+      scheme: 'pay-per-attribution',
+      calculation_strategy: 'variable',
+      payee_type: 'end-user',
+      base_currency: 'none',
+      tier_type: 'audience',
+      payout_groups: [
+        {
+          end_user_amount_percentage: 0.3,
+        },
+        {
+          audience_id: '11111111-1111-4111-8111-111111111111',
+          end_user_amount_percentage: 0.45,
+        },
+      ],
+    });
+  });
+
+  it('strips term-level amount fields when tier_type is set', () => {
+    const input = {
+      tier_type: 'audience',
+      calculation_strategy: 'variable',
+      payee_type: 'both',
+      referral_amount: '0.2',
+      referrer_amount: '0.1',
+      payout_groups: [
+        {
+          referral_amount: 0.3,
+          referrer_amount: 0.05,
+        },
+      ],
+    };
+
+    const result = normalizePayoutTermBodyForPatch(input);
+
+    expect(result).not.toHaveProperty('referral_amount');
+    expect(result).not.toHaveProperty('referrer_amount');
+    expect(result).not.toHaveProperty('referral_amount_percentage');
+    expect(result.payout_groups).toEqual([
+      {
+        end_user_amount_percentage: 0.3,
+        affiliate_amount_percentage: 0.05,
+      },
+    ]);
+  });
+});
+
 describe('preparePayoutTermBodyForWrite', () => {
   it('rounds fixed point amounts then leaves body unchanged for fixed strategy', () => {
     const { body, amountRounding } = preparePayoutTermBodyForWrite({

@@ -2,23 +2,60 @@ import { assertWriteConfirmedOrDryRun } from '../agent/write-confirmation.js';
 import type { FuulApiClient } from '../http/fuul-api-client.js';
 import { attachDraftIdResolution, resolveDraftConversionIdForWrite, resolveDraftTriggerIdsForWrite } from '../metadata-scope/resolve-draft-ids.js';
 import { type AmountRoundingNotice, attachAmountRounding, preparePayoutTermBodyForWrite } from '../payouts/normalize-payout-term-body.js';
-import type { CreateIncentiveInput, DeleteIncentiveInput } from '../tools/tool-schemas.js';
+import { attachValidationErrors, type PayoutTermValidationError } from '../payouts/payout-term-amounts-validation.js';
+import type { CreateIncentiveInput, DeleteIncentiveInput, UpdateIncentiveTriggersInput } from '../tools/tool-schemas.js';
+
+function prefixField(prefix: string, field: string): string {
+  return field.startsWith(prefix) ? field : `${prefix}.${field}`;
+}
+
+function preparePayoutTermsForWrite(
+  payoutTerms: Record<string, unknown>[],
+  fieldPrefix: string,
+): {
+  payout_terms: Record<string, unknown>[];
+  amountRounding: AmountRoundingNotice[];
+  validationErrors: PayoutTermValidationError[];
+} {
+  const amountRounding: AmountRoundingNotice[] = [];
+  const validationErrors: PayoutTermValidationError[] = [];
+
+  const preparedTerms = payoutTerms.map((term, index) => {
+    const termPrefix = `${fieldPrefix}[${index}]`;
+    const prepared = preparePayoutTermBodyForWrite(term);
+
+    for (const notice of prepared.amountRounding) {
+      amountRounding.push({
+        ...notice,
+        field: prefixField(termPrefix, notice.field),
+      });
+    }
+
+    for (const error of prepared.validationErrors) {
+      validationErrors.push({
+        ...error,
+        property: prefixField(termPrefix, error.property),
+      });
+    }
+
+    return prepared.body;
+  });
+
+  return { payout_terms: preparedTerms, amountRounding, validationErrors };
+}
 
 function buildCreateIncentiveBody(
   input: CreateIncentiveInput,
   triggerIds: string[],
-): { body: Record<string, unknown>; amountRounding: AmountRoundingNotice[] } {
-  const amountRounding: AmountRoundingNotice[] = [];
-  const payout_terms = input.payout_terms.map((term, index) => {
-    const prepared = preparePayoutTermBodyForWrite(term as Record<string, unknown>);
-    for (const notice of prepared.amountRounding) {
-      amountRounding.push({
-        ...notice,
-        field: `payout_terms[${index}].${notice.field}`,
-      });
-    }
-    return prepared.body;
-  });
+): {
+  body: Record<string, unknown>;
+  amountRounding: AmountRoundingNotice[];
+  validationErrors: PayoutTermValidationError[];
+} {
+  const { payout_terms, amountRounding, validationErrors } = preparePayoutTermsForWrite(
+    input.payout_terms as Record<string, unknown>[],
+    'payout_terms',
+  );
 
   return {
     body: {
@@ -27,7 +64,16 @@ function buildCreateIncentiveBody(
       payout_terms,
     },
     amountRounding,
+    validationErrors,
   };
+}
+
+function attachWritePreviewMetadata<T extends Record<string, unknown>>(
+  payload: T,
+  amountRounding: AmountRoundingNotice[],
+  validationErrors: PayoutTermValidationError[],
+): T & { _amount_rounding?: AmountRoundingNotice[]; _validation_errors?: PayoutTermValidationError[] } {
+  return attachValidationErrors(attachAmountRounding(payload, amountRounding), validationErrors);
 }
 
 export async function runCreateIncentive(api: FuulApiClient, input: CreateIncentiveInput, toolTimeoutMs: number): Promise<unknown> {
@@ -35,17 +81,18 @@ export async function runCreateIncentive(api: FuulApiClient, input: CreateIncent
   const triggerResolutions = await resolveDraftTriggerIdsForWrite(api, input.project_id, input.trigger_ids, toolTimeoutMs);
   const resolvedTriggerIds = triggerResolutions.map((row) => row.resolved_draft_trigger_id);
   const path = `/api/v1/projects/${input.project_id}/incentives`;
-  const { body, amountRounding } = buildCreateIncentiveBody(input, resolvedTriggerIds);
+  const { body, amountRounding, validationErrors } = buildCreateIncentiveBody(input, resolvedTriggerIds);
 
   if (input.dry_run === true) {
     return attachDraftIdResolution(
-      attachAmountRounding(
+      attachWritePreviewMetadata(
         {
           dry_run: true,
           would_post: path,
           body,
         },
         amountRounding,
+        validationErrors,
       ),
       { triggers: triggerResolutions },
     );
@@ -54,8 +101,8 @@ export async function runCreateIncentive(api: FuulApiClient, input: CreateIncent
   const result = await api.postJson(path, body);
   const responsePayload =
     result !== null && typeof result === 'object' && !Array.isArray(result)
-      ? attachAmountRounding(result as Record<string, unknown>, amountRounding)
-      : attachAmountRounding({ result }, amountRounding);
+      ? attachWritePreviewMetadata(result as Record<string, unknown>, amountRounding, validationErrors)
+      : attachWritePreviewMetadata({ result }, amountRounding, validationErrors);
   return attachDraftIdResolution(responsePayload, { triggers: triggerResolutions });
 }
 
@@ -76,4 +123,48 @@ export async function runDeleteIncentive(api: FuulApiClient, input: DeleteIncent
 
   const result = await api.deleteJson(path);
   return attachDraftIdResolution(result ?? { ok: true }, resolution);
+}
+
+export async function runUpdateIncentiveTriggers(api: FuulApiClient, input: UpdateIncentiveTriggersInput, toolTimeoutMs: number): Promise<unknown> {
+  assertWriteConfirmedOrDryRun(input);
+  const conversionResolution = await resolveDraftConversionIdForWrite(api, input.project_id, input.conversion_id, toolTimeoutMs);
+  const triggerResolutions = await resolveDraftTriggerIdsForWrite(api, input.project_id, input.trigger_ids, toolTimeoutMs);
+  const triggerRefs = triggerResolutions.map((row) => row.ref);
+
+  let conversionName = input.name;
+  if (!conversionName) {
+    const incentive = await api.getJson(`/api/v1/projects/${input.project_id}/incentives/${conversionResolution.resolved_draft_conversion_id}`);
+    if (incentive !== null && typeof incentive === 'object' && !Array.isArray(incentive)) {
+      const name = (incentive as Record<string, unknown>).name;
+      if (typeof name === 'string' && name.trim().length > 0) {
+        conversionName = name;
+      }
+    }
+  }
+
+  if (!conversionName) {
+    throw new Error('Could not resolve conversion name; pass name explicitly.');
+  }
+
+  const path = `/api/v1/projects/${input.project_id}/conversions/${conversionResolution.resolved_draft_conversion_id}`;
+  const body = {
+    name: conversionName,
+    trigger_refs: triggerRefs,
+  };
+
+  if (input.dry_run === true) {
+    return attachDraftIdResolution(
+      {
+        dry_run: true,
+        would_patch: path,
+        body,
+        note: 'Replaces the conversion trigger set only; payout terms are unchanged. Do not use PATCH /incentives for this.',
+      },
+      { conversion: conversionResolution, triggers: triggerResolutions },
+    );
+  }
+
+  const result = await api.patchJson(path, body);
+  const responsePayload = result !== null && typeof result === 'object' && !Array.isArray(result) ? (result as Record<string, unknown>) : { result };
+  return attachDraftIdResolution(responsePayload, { conversion: conversionResolution, triggers: triggerResolutions });
 }

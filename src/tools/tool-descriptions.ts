@@ -95,10 +95,20 @@ export const UPDATE_PAYOUT_TERM_DESCRIPTION =
   'Updates one payout term on a draft conversion: PATCH /api/v1/projects/:projectId/conversions/:conversionId/payout_terms/:payoutTermId. ' +
   'Body is a single PayoutTermDto (use get_incentive, edit fields such as referral_amount / referrer_amount, send as payout_term). ' +
   'For variable rewards, the server expects referral_amount_percentage / referrer_amount_percentage; this tool maps GET aliases automatically (same as the dashboard). ' +
+  'Tiered terms (tier_type set, e.g. "audience"): amounts live in payout_groups[] only — use end_user_amount_percentage / affiliate_amount_percentage (variable) or end_user_amount / affiliate_amount (fixed). ' +
+  'MCP maps referral_amount → end_user_amount_percentage inside each group and strips term-level amount fields. Default rate: one group with neither audience_id nor project_tier_id. ' +
+  'There is no multiplier field; set explicit percentages per group. dry_run returns normalized body plus _validation_errors when amounts would fail server validation. ' +
   'Per-unit rewards: edit referral_amount and referrer_amount; do not send zero percentages. ' +
   'Point-type fixed/pool/rank amounts with decimals are rounded to the nearest integer before send (response includes _amount_rounding when applied); variable point rewards keep decimals. ' +
-  'dry_run shows the normalized body sent to the API. ' +
   'Example dry_run: {"project_id":"<uuid>","conversion_id":"<uuid>","payout_term_id":"<uuid>","payout_term":{...},"dry_run":true}.' +
+  DRAFT_ID_RESOLUTION_BEFORE_WRITE_NOTE +
+  PUBLISH_METADATA_AFTER_WRITE_NOTE;
+
+export const UPDATE_INCENTIVE_TRIGGERS_DESCRIPTION =
+  'Replaces triggers on an existing draft incentive without touching payout terms: PATCH /api/v1/projects/:projectId/conversions/:conversionId with trigger_refs[]. ' +
+  'Pass trigger_ids[] (draft UUIDs); MCP resolves them to stable trigger_refs. name is required by the API — omit to reuse the current incentive name from GET. ' +
+  'Use this to add/remove triggers on a multi-trigger program (e.g. LP + Beefy). Do NOT use PATCH /incentives for trigger changes (that route soft-removes payout terms). ' +
+  'dry_run then confirmed. Example: {"project_id":"<uuid>","conversion_id":"<uuid>","trigger_ids":["<uuid>","<uuid>"],"dry_run":true}.' +
   DRAFT_ID_RESOLUTION_BEFORE_WRITE_NOTE +
   PUBLISH_METADATA_AFTER_WRITE_NOTE;
 
@@ -145,11 +155,12 @@ export const DELETE_TRIGGER_DESCRIPTION =
 
 export const CREATE_INCENTIVE_DESCRIPTION =
   'Creates a draft incentive (conversion): POST /api/v1/projects/:projectId/incentives. Body: name, trigger_ids[] (draft or published trigger UUIDs — resolved to current draft), payout_terms[] (PayoutTermDto, min 1 each). ' +
-  'REQUIRED: list_payout_schemas first — pick reward_types[].id (fixed-reward | variable-reward | proportional-pool | leaderboard) and use create_payload_example. ' +
+  'REQUIRED: list_payout_schemas first — pick reward_types[].id (fixed-reward | variable-reward | proportional-pool | leaderboard | tiered-audience-boost) and use create_payload_example. ' +
   'Schemes on wire: pay-per-attribution (fixed/variable), pool, rank. type: point | onchain-currency. payee_type: affiliate | end-user | both. ' +
   'Fixed: calculation_strategy fixed, referrer_amount/referral_amount. Variable: calculation_strategy variable, trigger_amount_source, base_currency, *_amount_percentage. ' +
+  'Tiered audience boost: tier_type "audience", payout_groups[] with per-group end_user_amount_percentage (and affiliate_amount_percentage when payee_type is both/affiliate); default group has no audience_id. ' +
   'Pool: scheme pool, amount_source, pool_amount, pool_duration, pool_calculation_day_cron. Leaderboard: scheme rank, rank_scheme_config.ranks, pool window fields. ' +
-  'MCP normalizes variable terms (referral_amount → referral_amount_percentage). dry_run then confirmed.' +
+  'MCP normalizes variable terms and tiered group aliases; dry_run returns _validation_errors when amounts would fail server validation. dry_run then confirmed.' +
   DRAFT_ID_RESOLUTION_BEFORE_WRITE_NOTE +
   PUBLISH_METADATA_AFTER_WRITE_NOTE;
 

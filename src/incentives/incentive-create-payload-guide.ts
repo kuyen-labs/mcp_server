@@ -3,7 +3,7 @@
  * Aligned with fuul-webapp conversions/infra/encode.ts (mapToIncentiveTypeMapper).
  */
 
-export type IncentiveRewardTypeId = 'fixed-reward' | 'variable-reward' | 'proportional-pool' | 'leaderboard';
+export type IncentiveRewardTypeId = 'fixed-reward' | 'variable-reward' | 'proportional-pool' | 'leaderboard' | 'tiered-audience-boost';
 
 export const CREATE_INCENTIVE_GLOBAL_GUIDE = {
   endpoint: 'POST /api/v1/projects/:projectId/incentives',
@@ -43,6 +43,16 @@ export const CREATE_INCENTIVE_GLOBAL_GUIDE = {
         'Requires rank_scheme_config.ranks (position -> { prizeAmount }), amount_source, pool_amount (total), ' +
         'pool_duration, pool_calculation_day_cron, pool_start_date, pool_end_date.',
     },
+    'tiered-audience-boost': {
+      webapp_mapper: 'mapToVariableIncentiveDTO (tiered)',
+      scheme: 'pay-per-attribution',
+      calculation_strategy: 'variable',
+      notes:
+        'Set tier_type "audience". Do NOT set referral_amount / referral_amount_percentage on the term — amounts belong in payout_groups[]. ' +
+        'Variable end-user: end_user_amount_percentage per group (number, e.g. 0.3 = 30% of volume). ' +
+        'Audience boost group: audience_id + higher end_user_amount_percentage. Default rate: one group with neither audience_id nor project_tier_id. ' +
+        'MCP maps referral_amount inside a group → end_user_amount_percentage. No multiplier field exists.',
+    },
   },
   workflow: [
     'Call list_payout_schemas (enriched with reward_types and create_payload_example).',
@@ -50,7 +60,14 @@ export const CREATE_INCENTIVE_GLOBAL_GUIDE = {
     'Build payout_terms[] for the chosen reward type; create_incentive with dry_run then confirmed.',
   ],
   mcp_normalization:
-    'create_incentive runs preparePayoutTermBodyForWrite on each payout term (point fixed/pool/rank: rounds decimal amounts to integers; variable: maps referral_amount aliases to *_percentage).',
+    'create_incentive runs preparePayoutTermBodyForWrite on each payout term (point fixed/pool/rank: rounds decimal amounts to integers; variable: maps referral_amount aliases to *_percentage; tiered: maps group aliases, strips term-level amounts, dry_run surfaces _validation_errors).',
+  tiered_audience_boost_faq: {
+    Q1_default_rate: 'Put the base rate in a payout_groups[] entry with no audience_id and no project_tier_id (default tier).',
+    Q2_audience_boost: 'Add another payout_groups[] entry with audience_id and a higher end_user_amount_percentage for members of that audience.',
+    Q3_field_names:
+      'Inside payout_groups use end_user_amount_percentage (not referral_amount at term level). MCP normalizes referral_amount → end_user_amount_percentage per group.',
+    Q4_multiplier: 'There is no multiplier field. Set explicit percentages on each group (e.g. default 0.3, boosted audience 0.45).',
+  },
   reference: 'fuul-webapp src/modules/conversions/infra/encode.ts',
 } as const;
 
@@ -117,6 +134,35 @@ export const CREATE_INCENTIVE_EXAMPLES: Record<IncentiveRewardTypeId, { descript
       ],
     },
   },
+  'tiered-audience-boost': {
+    description: 'Variable % of volume with audience-specific boosts (Dre Money / RAAC pattern)',
+    payload: {
+      name: 'MCP tiered audience boost',
+      trigger_ids: ['<TRIGGER_UUID>'],
+      payout_terms: [
+        {
+          scheme: 'pay-per-attribution',
+          type: 'point',
+          calculation_strategy: 'variable',
+          payee_type: 'end-user',
+          require_affiliate: false,
+          require_approval: false,
+          trigger_amount_source: 'volume',
+          base_currency: 'none',
+          tier_type: 'audience',
+          payout_groups: [
+            {
+              end_user_amount_percentage: 0.3,
+            },
+            {
+              audience_id: '<AUDIENCE_UUID>',
+              end_user_amount_percentage: 0.45,
+            },
+          ],
+        },
+      ],
+    },
+  },
   leaderboard: {
     description: 'Rank leaderboard with prizes for top positions',
     payload: {
@@ -155,7 +201,7 @@ export function enrichPayoutSchemasResponse(raw: unknown): unknown {
   const payload = raw as Record<string, unknown>;
   const reward_types = (Object.keys(CREATE_INCENTIVE_EXAMPLES) as IncentiveRewardTypeId[]).map((id) => ({
     id,
-    ...CREATE_INCENTIVE_GLOBAL_GUIDE.reward_types[id === 'leaderboard' ? 'leaderboard' : id],
+    ...CREATE_INCENTIVE_GLOBAL_GUIDE.reward_types[id],
     create_payload_example: CREATE_INCENTIVE_EXAMPLES[id].payload,
     example_description: CREATE_INCENTIVE_EXAMPLES[id].description,
   }));

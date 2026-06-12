@@ -18,7 +18,7 @@ import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-ap
 import { MissingProjectApiKeyError, resolveProjectApiKeyBearer } from './http/project-api-key-bearer.js';
 import { incentiveHistoryPath, incentiveStatsPath, projectIncentivesBreakdownPath } from './incentive-analytics/incentive-analytics-queries.js';
 import { enrichPayoutSchemasResponse } from './incentives/incentive-create-payload-guide.js';
-import { runCreateIncentive, runDeleteIncentive } from './incentives/incentive-write-handlers.js';
+import { runCreateIncentive, runDeleteIncentive, runUpdateIncentiveTriggers } from './incentives/incentive-write-handlers.js';
 import { MetadataService } from './metadata/metadata-service.js';
 import {
   loadIncentivesListWithMetadataScope,
@@ -28,6 +28,7 @@ import {
 import { attachDraftIdResolution, resolveDraftConversionIdForWrite, resolveDraftTriggerIdForWrite } from './metadata-scope/resolve-draft-ids.js';
 import { attachAmountRounding, preparePayoutTermBodyForWrite } from './payouts/normalize-payout-term-body.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
+import { attachValidationErrors } from './payouts/payout-term-amounts-validation.js';
 import {
   runDeleteUserReferrer,
   runGetUserReferrer,
@@ -72,6 +73,7 @@ import {
   SEND_EVENT_DESCRIPTION,
   SWAP_USER_REFERRAL_CODE_DESCRIPTION,
   UPDATE_AUDIENCE_DESCRIPTION,
+  UPDATE_INCENTIVE_TRIGGERS_DESCRIPTION,
   UPDATE_PAYOUT_TERM_DESCRIPTION,
   UPDATE_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
   UPDATE_PROJECT_TIER_DESCRIPTION,
@@ -124,6 +126,8 @@ import {
   swapUserReferralCodeInputSchema,
   updateAudienceFieldsSchema,
   updateAudienceInputSchema,
+  updateIncentiveTriggersFieldsSchema,
+  updateIncentiveTriggersInputSchema,
   updatePayoutTermInputSchema,
   updateProjectAffiliatePublicFieldsSchema,
   updateProjectAffiliatePublicInputSchema,
@@ -382,6 +386,16 @@ async function main(): Promise<void> {
       return { content: [{ type: 'text', text: stringifyToolPayload(data ?? { ok: true }, parsed.dry_run) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to delete incentive');
+    }
+  });
+
+  server.tool('update_incentive_triggers', UPDATE_INCENTIVE_TRIGGERS_DESCRIPTION, updateIncentiveTriggersFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = updateIncentiveTriggersInputSchema.parse(args);
+      const data = await withTimeout(runUpdateIncentiveTriggers(api, parsed, toolTimeoutMs), toolTimeoutMs, 'update_incentive_triggers');
+      return { content: [{ type: 'text', text: stringifyToolPayload(data, parsed.dry_run) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to update incentive triggers');
     }
   });
 
@@ -662,7 +676,7 @@ async function main(): Promise<void> {
       assertWriteConfirmedOrDryRun(parsed);
       const conversionResolution = await resolveDraftConversionIdForWrite(api, parsed.project_id, parsed.conversion_id, toolTimeoutMs);
       const path = `/api/v1/projects/${parsed.project_id}/conversions/${conversionResolution.resolved_draft_conversion_id}/payout_terms/${parsed.payout_term_id}`;
-      const { body: patchBody, amountRounding } = preparePayoutTermBodyForWrite(parsed.payout_term as Record<string, unknown>);
+      const { body: patchBody, amountRounding, validationErrors } = preparePayoutTermBodyForWrite(parsed.payout_term as Record<string, unknown>);
       if (parsed.dry_run === true) {
         return {
           content: [
@@ -670,7 +684,10 @@ async function main(): Promise<void> {
               type: 'text',
               text: JSON.stringify(
                 attachDraftIdResolution(
-                  attachAmountRounding({ dry_run: true, would_patch: path, body: patchBody }, amountRounding),
+                  attachValidationErrors(
+                    attachAmountRounding({ dry_run: true, would_patch: path, body: patchBody }, amountRounding),
+                    validationErrors,
+                  ),
                   conversionResolution,
                 ),
                 null,
@@ -683,8 +700,8 @@ async function main(): Promise<void> {
       const data = await withTimeout(api.patchJson(path, patchBody), toolTimeoutMs, 'update_payout_term');
       const responsePayload =
         data !== null && typeof data === 'object' && !Array.isArray(data)
-          ? attachAmountRounding(data as Record<string, unknown>, amountRounding)
-          : attachAmountRounding({ result: data }, amountRounding);
+          ? attachValidationErrors(attachAmountRounding(data as Record<string, unknown>, amountRounding), validationErrors)
+          : attachValidationErrors(attachAmountRounding({ result: data }, amountRounding), validationErrors);
       return {
         content: [
           {
