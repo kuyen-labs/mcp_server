@@ -26,7 +26,7 @@ import {
   loadProjectWithMetadataScope,
 } from './metadata-scope/fetch-project-config.js';
 import { attachDraftIdResolution, resolveDraftConversionIdForWrite, resolveDraftTriggerIdForWrite } from './metadata-scope/resolve-draft-ids.js';
-import { normalizePayoutTermBodyForPatch } from './payouts/normalize-payout-term-body.js';
+import { attachAmountRounding, preparePayoutTermBodyForWrite } from './payouts/normalize-payout-term-body.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import {
   runDeleteUserReferrer,
@@ -662,23 +662,34 @@ async function main(): Promise<void> {
       assertWriteConfirmedOrDryRun(parsed);
       const conversionResolution = await resolveDraftConversionIdForWrite(api, parsed.project_id, parsed.conversion_id, toolTimeoutMs);
       const path = `/api/v1/projects/${parsed.project_id}/conversions/${conversionResolution.resolved_draft_conversion_id}/payout_terms/${parsed.payout_term_id}`;
-      const patchBody = normalizePayoutTermBodyForPatch(parsed.payout_term as Record<string, unknown>);
+      const { body: patchBody, amountRounding } = preparePayoutTermBodyForWrite(parsed.payout_term as Record<string, unknown>);
       if (parsed.dry_run === true) {
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(attachDraftIdResolution({ dry_run: true, would_patch: path, body: patchBody }, conversionResolution), null, 2),
+              text: JSON.stringify(
+                attachDraftIdResolution(
+                  attachAmountRounding({ dry_run: true, would_patch: path, body: patchBody }, amountRounding),
+                  conversionResolution,
+                ),
+                null,
+                2,
+              ),
             },
           ],
         };
       }
       const data = await withTimeout(api.patchJson(path, patchBody), toolTimeoutMs, 'update_payout_term');
+      const responsePayload =
+        data !== null && typeof data === 'object' && !Array.isArray(data)
+          ? attachAmountRounding(data as Record<string, unknown>, amountRounding)
+          : attachAmountRounding({ result: data }, amountRounding);
       return {
         content: [
           {
             type: 'text',
-            text: stringifyToolPayload(attachDraftIdResolution(data, conversionResolution), parsed.dry_run),
+            text: stringifyToolPayload(attachDraftIdResolution(responsePayload, conversionResolution), parsed.dry_run),
           },
         ],
       };

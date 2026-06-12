@@ -50,7 +50,7 @@ export const CREATE_INCENTIVE_GLOBAL_GUIDE = {
     'Build payout_terms[] for the chosen reward type; create_incentive with dry_run then confirmed.',
   ],
   mcp_normalization:
-    'create_incentive runs normalizePayoutTermBodyForPatch on each payout term (variable: maps referral_amount aliases to *_percentage).',
+    'create_incentive runs preparePayoutTermBodyForWrite on each payout term (point fixed/pool/rank: rounds decimal amounts to integers; variable: maps referral_amount aliases to *_percentage).',
   reference: 'fuul-webapp src/modules/conversions/infra/encode.ts',
 } as const;
 
