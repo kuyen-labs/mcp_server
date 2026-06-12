@@ -95,7 +95,9 @@ export const UPDATE_PAYOUT_TERM_DESCRIPTION =
   'Updates one payout term on a draft conversion: PATCH /api/v1/projects/:projectId/conversions/:conversionId/payout_terms/:payoutTermId. ' +
   'Body is a single PayoutTermDto (use get_incentive, edit fields such as referral_amount / referrer_amount, send as payout_term). ' +
   'For variable rewards, the server expects referral_amount_percentage / referrer_amount_percentage; this tool maps GET aliases automatically (same as the dashboard). ' +
-  'Per-unit rewards: edit referral_amount and referrer_amount; do not send zero percentages. dry_run shows the normalized body sent to the API. ' +
+  'Per-unit rewards: edit referral_amount and referrer_amount; do not send zero percentages. ' +
+  'Point-type fixed/pool/rank amounts with decimals are rounded to the nearest integer before send (response includes _amount_rounding when applied); variable point rewards keep decimals. ' +
+  'dry_run shows the normalized body sent to the API. ' +
   'Example dry_run: {"project_id":"<uuid>","conversion_id":"<uuid>","payout_term_id":"<uuid>","payout_term":{...},"dry_run":true}.' +
   DRAFT_ID_RESOLUTION_BEFORE_WRITE_NOTE +
   PUBLISH_METADATA_AFTER_WRITE_NOTE;
