@@ -20,14 +20,8 @@ export type RubricCriterionResult = {
 
 const WRITE_TOOLS = new Set(['create_incentive', 'update_payout_term']);
 const TIER_TOOLS = new Set(['create_project_tier', 'update_project_tier']);
-const DISCOVERY_TOOLS = new Set(['list_audiences', 'list_project_tiers']);
 
-const CAP_FIELDS = [
-  'payout_cap_enabled',
-  'wallet_cap_enabled',
-  'enduser_cap_enabled',
-  'dynamic_referral_cap_enabled',
-] as const;
+const CAP_FIELDS = ['payout_cap_enabled', 'wallet_cap_enabled', 'enduser_cap_enabled', 'dynamic_referral_cap_enabled'] as const;
 
 function isTruthyFlag(value: unknown): boolean {
   return value === true || value === 'true';
@@ -131,9 +125,7 @@ function hasMultiplierInGroups(groups: Record<string, unknown>[][]): boolean {
 }
 
 function groupsMissingCaps(groups: Record<string, unknown>[][]): boolean {
-  return groups.some((row) =>
-    row.some((g) => CAP_FIELDS.some((field) => g[field] === undefined || g[field] === null)),
-  );
+  return groups.some((row) => row.some((g) => CAP_FIELDS.some((field) => g[field] === undefined || g[field] === null)));
 }
 
 function groupsWithAudienceIdWithoutTier(groups: Record<string, unknown>[][]): boolean {
@@ -154,9 +146,7 @@ export function scoreTieredBoostToolTrace(calls: ToolCallTrace[]): RubricCriteri
   const hasListTiers = prefix.some((c) => c.tool === 'list_project_tiers');
   const hasTierMutation = calls.some((c) => TIER_TOOLS.has(c.tool));
 
-  const dryRunOutputs = calls
-    .filter((c) => WRITE_TOOLS.has(c.tool) && isTruthyFlag(c.input?.dry_run))
-    .map((c) => c.output);
+  const dryRunOutputs = calls.filter((c) => WRITE_TOOLS.has(c.tool) && isTruthyFlag(c.input?.dry_run)).map((c) => c.output);
   const dryRunGroups = dryRunOutputs.flatMap((o) => extractPayoutGroupsFromOutput(o));
   const inputGroups = collectGroupsFromInputs(calls);
 
@@ -184,8 +174,7 @@ export function scoreTieredBoostToolTrace(calls: ToolCallTrace[]): RubricCriteri
   const lastConfirmedIdx = calls.reduce((acc, call, idx) => {
     return WRITE_TOOLS.has(call.tool) && isTruthyFlag(call.input?.confirmed) ? idx : acc;
   }, -1);
-  const readbackAfterWrite =
-    lastConfirmedIdx >= 0 && calls.slice(lastConfirmedIdx + 1).some((c) => c.tool === 'get_incentive');
+  const readbackAfterWrite = lastConfirmedIdx >= 0 && calls.slice(lastConfirmedIdx + 1).some((c) => c.tool === 'get_incentive');
 
   const publishReminder = confirmedWrites.some((c) => {
     const out = c.output;
@@ -196,8 +185,7 @@ export function scoreTieredBoostToolTrace(calls: ToolCallTrace[]): RubricCriteri
     return typeof reminder === 'string' && reminder.length > 0;
   });
 
-  const discoveryVerdict: RubricVerdict =
-    tieredWriteIdx < 0 ? 'manual' : hasListAudiences && hasListTiers ? 'pass' : 'fail';
+  const discoveryVerdict: RubricVerdict = tieredWriteIdx < 0 ? 'manual' : hasListAudiences && hasListTiers ? 'pass' : 'fail';
 
   return [
     {
@@ -212,8 +200,7 @@ export function scoreTieredBoostToolTrace(calls: ToolCallTrace[]): RubricCriteri
     {
       id: 'tier_creation',
       label: 'create_project_tier or list_project_tiers for boosts',
-      verdict:
-        tieredWriteIdx < 0 ? 'manual' : hasTierMutation || hasListTiers ? 'pass' : 'fail',
+      verdict: tieredWriteIdx < 0 ? 'manual' : hasTierMutation || hasListTiers ? 'pass' : 'fail',
       detail:
         tieredWriteIdx < 0
           ? 'No tiered write in trace.'
@@ -261,10 +248,7 @@ export function scoreTieredBoostToolTrace(calls: ToolCallTrace[]): RubricCriteri
     {
       id: 'no_multiplier',
       label: 'No multiplier field; precomputed percentages',
-      verdict:
-        hasMultiplierInGroups(inputGroups) || (dryRunGroups.length > 0 && hasMultiplierInGroups(dryRunGroups))
-          ? 'fail'
-          : 'pass',
+      verdict: hasMultiplierInGroups(inputGroups) || (dryRunGroups.length > 0 && hasMultiplierInGroups(dryRunGroups)) ? 'fail' : 'pass',
       detail: hasMultiplierInGroups(inputGroups)
         ? 'multiplier found in write inputs.'
         : dryRunGroups.length > 0 && hasMultiplierInGroups(dryRunGroups)
