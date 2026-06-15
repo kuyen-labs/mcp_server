@@ -1,0 +1,115 @@
+[
+  {
+    "tool": "list_audiences",
+    "input": { "project_id": "538e1551-410e-41cc-bb60-27a68d6462c2" }
+  },
+  {
+    "tool": "list_project_tiers",
+    "input": { "project_id": "538e1551-410e-41cc-bb60-27a68d6462c2" }
+  },
+  {
+    "tool": "create_project_tier",
+    "input": {
+      "project_id": "538e1551-410e-41cc-bb60-27a68d6462c2",
+      "name": "VIP Boost",
+      "slug": "vip-boost",
+      "rank": 2,
+      "audience_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "dry_run": true
+    }
+  },
+  {
+    "tool": "create_project_tier",
+    "input": {
+      "project_id": "538e1551-410e-41cc-bb60-27a68d6462c2",
+      "name": "VIP Boost",
+      "slug": "vip-boost",
+      "rank": 2,
+      "audience_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "confirmed": true
+    }
+  },
+  {
+    "tool": "get_incentive",
+    "input": {
+      "project_id": "538e1551-410e-41cc-bb60-27a68d6462c2",
+      "conversion_id": "bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee"
+    }
+  },
+  {
+    "tool": "update_payout_term",
+    "input": {
+      "project_id": "538e1551-410e-41cc-bb60-27a68d6462c2",
+      "conversion_id": "bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "payout_term_id": "cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "payout_term": {
+        "tier_type": "audience",
+        "calculation_strategy": "variable",
+        "payee_type": "end-user",
+        "base_currency": "none",
+        "payout_groups": [
+          { "end_user_amount_percentage": 0.3 },
+          { "project_tier_id": "dddddddd-bbbb-cccc-dddd-eeeeeeeeeeee", "end_user_amount_percentage": 0.45 }
+        ]
+      },
+      "dry_run": true
+    },
+    "output": {
+      "dry_run": true,
+      "body": {
+        "payout_terms": [
+          {
+            "tier_type": "audience",
+            "payout_groups": [
+              {
+                "end_user_amount_percentage": 0.3,
+                "payout_cap_enabled": false,
+                "wallet_cap_enabled": false,
+                "enduser_cap_enabled": false,
+                "dynamic_referral_cap_enabled": false
+              },
+              {
+                "project_tier_id": "dddddddd-bbbb-cccc-dddd-eeeeeeeeeeee",
+                "end_user_amount_percentage": 0.45,
+                "payout_cap_enabled": false,
+                "wallet_cap_enabled": false,
+                "enduser_cap_enabled": false,
+                "dynamic_referral_cap_enabled": false
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "tool": "update_payout_term",
+    "input": {
+      "project_id": "538e1551-410e-41cc-bb60-27a68d6462c2",
+      "conversion_id": "bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "payout_term_id": "cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "payout_term": {
+        "tier_type": "audience",
+        "calculation_strategy": "variable",
+        "payee_type": "end-user",
+        "base_currency": "none",
+        "payout_groups": [
+          { "end_user_amount_percentage": 0.3 },
+          { "project_tier_id": "dddddddd-bbbb-cccc-dddd-eeeeeeeeeeee", "end_user_amount_percentage": 0.45 }
+        ]
+      },
+      "confirmed": true
+    },
+    "output": {
+      "_publish_metadata_reminder": "Changes were saved as draft.",
+      "_readback_reminder": "After a tiered payout write"
+    }
+  },
+  {
+    "tool": "get_incentive",
+    "input": {
+      "project_id": "538e1551-410e-41cc-bb60-27a68d6462c2",
+      "conversion_id": "bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee"
+    }
+  }
+]

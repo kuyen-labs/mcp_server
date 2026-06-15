@@ -36,6 +36,8 @@
     "test": "vitest run",
     "test:ci": "vitest run",
     "test:watch": "vitest",
+    "smoke:tiered-readonly": "tsx scripts/smoke-tiered-readonly.ts",
+    "eval:score-trace": "tsx scripts/score-tiered-trace.ts",
     "format": "prettier --write 'src/**/*.ts' '*.json' 'eslint.config.js' --config ./.prettierrc"
   },
   "dependencies": {
