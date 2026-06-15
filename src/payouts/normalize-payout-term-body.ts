@@ -4,6 +4,7 @@
  */
 
 import { type PayoutTermValidationError, validatePayoutTermAmounts } from './payout-term-amounts-validation.js';
+import { collectPayoutTermWarnings, type PayoutTermWarning } from './payout-term-warnings.js';
 
 const VARIABLE_AMOUNT_ALIASES = ['referral_amount', 'referrer_amount', 'referrer2_amount', 'referrer3_amount', 'referrer4_amount'] as const;
 
@@ -139,6 +140,21 @@ function stripTermLevelAmountFields(result: Record<string, unknown>): void {
   }
 }
 
+function applyPayoutGroupCapDefaults(groupObj: Record<string, unknown>): void {
+  if (groupObj.payout_cap_enabled === undefined || groupObj.payout_cap_enabled === null) {
+    groupObj.payout_cap_enabled = false;
+  }
+  if (groupObj.wallet_cap_enabled === undefined || groupObj.wallet_cap_enabled === null) {
+    groupObj.wallet_cap_enabled = false;
+  }
+  if (groupObj.enduser_cap_enabled === undefined || groupObj.enduser_cap_enabled === null) {
+    groupObj.enduser_cap_enabled = false;
+  }
+  if (groupObj.dynamic_referral_cap_enabled === undefined || groupObj.dynamic_referral_cap_enabled === null) {
+    groupObj.dynamic_referral_cap_enabled = false;
+  }
+}
+
 function normalizeTieredPayoutGroup(
   group: Record<string, unknown>,
   unitMode: boolean,
@@ -172,6 +188,7 @@ function normalizeTieredPayoutGroup(
     }
   }
 
+  applyPayoutGroupCapDefaults(groupObj);
   return groupObj;
 }
 
@@ -279,13 +296,16 @@ export function preparePayoutTermBodyForWrite(body: Record<string, unknown>): {
   body: Record<string, unknown>;
   amountRounding: AmountRoundingNotice[];
   validationErrors: PayoutTermValidationError[];
+  warnings: PayoutTermWarning[];
 } {
+  const warnings = collectPayoutTermWarnings(body);
   const { body: roundedBody, amountRounding } = roundPointIntegerAmounts(body);
   const normalized = normalizePayoutTermBodyForPatch(roundedBody);
   return {
     body: normalized,
     amountRounding,
     validationErrors: validatePayoutTermAmounts(normalized),
+    warnings,
   };
 }
 

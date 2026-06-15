@@ -174,6 +174,13 @@ describe('roundPointIntegerAmounts', () => {
   });
 });
 
+const TIERED_GROUP_CAP_DEFAULTS = {
+  payout_cap_enabled: false,
+  wallet_cap_enabled: false,
+  enduser_cap_enabled: false,
+  dynamic_referral_cap_enabled: false,
+};
+
 describe('normalizePayoutTermBodyForPatch tiered audience boost', () => {
   it('maps group referral_amount aliases and strips term-level amounts (Dre Money pattern)', () => {
     const input = {
@@ -203,10 +210,12 @@ describe('normalizePayoutTermBodyForPatch tiered audience boost', () => {
       payout_groups: [
         {
           end_user_amount_percentage: 0.3,
+          ...TIERED_GROUP_CAP_DEFAULTS,
         },
         {
           audience_id: '11111111-1111-4111-8111-111111111111',
           end_user_amount_percentage: 0.45,
+          ...TIERED_GROUP_CAP_DEFAULTS,
         },
       ],
     });
@@ -236,6 +245,7 @@ describe('normalizePayoutTermBodyForPatch tiered audience boost', () => {
       {
         end_user_amount_percentage: 0.3,
         affiliate_amount_percentage: 0.05,
+        ...TIERED_GROUP_CAP_DEFAULTS,
       },
     ]);
   });
@@ -272,5 +282,32 @@ describe('preparePayoutTermBodyForWrite', () => {
     });
     expect(body).not.toHaveProperty('referrer_amount');
     expect(amountRounding).toEqual([]);
+  });
+
+  it('injects default cap booleans on tiered payout groups', () => {
+    const { body } = preparePayoutTermBodyForWrite({
+      calculation_strategy: 'variable',
+      payee_type: 'end-user',
+      tier_type: 'audience',
+      payout_groups: [{ end_user_amount_percentage: 0.3 }, { project_tier_id: 'tier-uuid', end_user_amount_percentage: 0.45 }],
+    });
+
+    expect(body.payout_groups).toEqual([
+      {
+        end_user_amount_percentage: 0.3,
+        payout_cap_enabled: false,
+        wallet_cap_enabled: false,
+        enduser_cap_enabled: false,
+        dynamic_referral_cap_enabled: false,
+      },
+      {
+        project_tier_id: 'tier-uuid',
+        end_user_amount_percentage: 0.45,
+        payout_cap_enabled: false,
+        wallet_cap_enabled: false,
+        enduser_cap_enabled: false,
+        dynamic_referral_cap_enabled: false,
+      },
+    ]);
   });
 });

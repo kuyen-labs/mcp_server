@@ -2,6 +2,8 @@
  * MCP tool descriptions tuned for LLMs (parameters + short examples).
  */
 
+import { TIERED_AUDIENCE_BOOST_TOOL_HINT } from '../incentives/tiered-audience-boost-guide.js';
+
 export const PUBLISH_METADATA_AFTER_WRITE_NOTE =
   ' On successful execution (not dry_run), the response includes _publish_metadata_reminder: publish project metadata from the dashboard (Project → Incentives or Triggers → Publish now). The MCP cannot publish for you.';
 
@@ -95,9 +97,8 @@ export const UPDATE_PAYOUT_TERM_DESCRIPTION =
   'Updates one payout term on a draft conversion: PATCH /api/v1/projects/:projectId/conversions/:conversionId/payout_terms/:payoutTermId. ' +
   'Body is a single PayoutTermDto (use get_incentive, edit fields such as referral_amount / referrer_amount, send as payout_term). ' +
   'For variable rewards, the server expects referral_amount_percentage / referrer_amount_percentage; this tool maps GET aliases automatically (same as the dashboard). ' +
-  'Tiered terms (tier_type set, e.g. "audience"): amounts live in payout_groups[] only — use end_user_amount_percentage / affiliate_amount_percentage (variable) or end_user_amount / affiliate_amount (fixed). ' +
-  'MCP maps referral_amount → end_user_amount_percentage inside each group and strips term-level amount fields. Default rate: one group with neither audience_id nor project_tier_id. ' +
-  'There is no multiplier field; set explicit percentages per group. dry_run returns normalized body plus _validation_errors when amounts would fail server validation. ' +
+  TIERED_AUDIENCE_BOOST_TOOL_HINT +
+  ' ' +
   'Per-unit rewards: edit referral_amount and referrer_amount; do not send zero percentages. ' +
   'Point-type fixed/pool/rank amounts with decimals are rounded to the nearest integer before send (response includes _amount_rounding when applied); variable point rewards keep decimals. ' +
   'Example dry_run: {"project_id":"<uuid>","conversion_id":"<uuid>","payout_term_id":"<uuid>","payout_term":{...},"dry_run":true}.' +
@@ -115,6 +116,20 @@ export const UPDATE_INCENTIVE_TRIGGERS_DESCRIPTION =
 export const UPDATE_PROJECT_TIER_DESCRIPTION =
   'Updates a project affiliate tier: PATCH /api/v1/projects/:projectId/tiers/:tierId. Optional fields: name, description, rank, audience_id (null clears audience). ' +
   'At least one field required. dry_run then confirmed. Example: {"project_id":"<uuid>","tier_id":"<uuid>","rank":2,"dry_run":true}.';
+
+export const LIST_AUDIENCES_DESCRIPTION =
+  'Lists audiences (user segments) for a project: GET /api/v1/projects/:projectId/audiences. ' +
+  'Use before create_project_tier or tiered payout_groups to resolve audience UUIDs. Example: {"project_id":"<uuid>"}.';
+
+export const LIST_PROJECT_TIERS_DESCRIPTION =
+  'Lists project affiliate tiers (ranked; optional audience link): GET /api/v1/projects/:projectId/tiers. ' +
+  'Optional include_payout_terms:true merges payout terms per tier. Use tier id as project_tier_id in tiered payout_groups. ' +
+  'Example: {"project_id":"<uuid>"} or {"project_id":"<uuid>","include_payout_terms":true}.';
+
+export const CREATE_PROJECT_TIER_DESCRIPTION =
+  'Creates a project affiliate tier: POST /api/v1/projects/:projectId/tiers. Body: name, slug (kebab-case), rank (min 1), optional description, audience_id, requires_manual_project_approval. ' +
+  'Tiers apply live immediately (unlike draft incentive edits). Boost tiers must rank above the Default Tier. dry_run then confirmed. ' +
+  'Example dry_run: {"project_id":"<uuid>","name":"Week 1","slug":"week-1","rank":5,"audience_id":"<uuid>","dry_run":true}.';
 
 export const UPDATE_AUDIENCE_DESCRIPTION =
   'Updates an audience (user list): PATCH /api/v1/projects/:projectId/audiences/:audienceId. Body matches CreateOrUpdateAudienceDto: name (required), optional conditions[] (signature + parameters), condition_match_mode "any"|"all" (required if conditions non-empty), contractId. ' +
@@ -158,7 +173,8 @@ export const CREATE_INCENTIVE_DESCRIPTION =
   'REQUIRED: list_payout_schemas first — pick reward_types[].id (fixed-reward | variable-reward | proportional-pool | leaderboard | tiered-audience-boost) and use create_payload_example. ' +
   'Schemes on wire: pay-per-attribution (fixed/variable), pool, rank. type: point | onchain-currency. payee_type: affiliate | end-user | both. ' +
   'Fixed: calculation_strategy fixed, referrer_amount/referral_amount. Variable: calculation_strategy variable, trigger_amount_source, base_currency, *_amount_percentage. ' +
-  'Tiered audience boost: tier_type "audience", payout_groups[] with per-group end_user_amount_percentage (and affiliate_amount_percentage when payee_type is both/affiliate); default group has no audience_id. ' +
+  TIERED_AUDIENCE_BOOST_TOOL_HINT +
+  ' ' +
   'Pool: scheme pool, amount_source, pool_amount, pool_duration, pool_calculation_day_cron. Leaderboard: scheme rank, rank_scheme_config.ranks, pool window fields. ' +
   'MCP normalizes variable terms and tiered group aliases; dry_run returns _validation_errors when amounts would fail server validation. dry_run then confirmed.' +
   DRAFT_ID_RESOLUTION_BEFORE_WRITE_NOTE +

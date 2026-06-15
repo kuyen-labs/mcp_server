@@ -9,6 +9,8 @@ const envSchema = z.object({
   FUUL_OAUTH_REDIRECT_URI: z.string().url().default('http://127.0.0.1:8765/callback'),
   /** Max wall time per MCP tool call (ms). Covers refresh + retry on 401. */
   FUUL_MCP_TOOL_TIMEOUT_MS: z.coerce.number().int().positive().default(90_000),
+  /** Max wall time for mutation tools that refresh project metadata before write (ms). */
+  FUUL_MCP_WRITE_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
   /** Default Bearer for POST/PATCH/GET /api/v1/project-affiliates (project API key). Tool arg project_api_key overrides this. */
   FUUL_MCP_PROJECT_API_KEY: z.string().min(1).optional(),
 });
@@ -25,6 +27,7 @@ export function loadEnv(processEnv: NodeJS.ProcessEnv = process.env): Env {
     FUUL_OAUTH_CLIENT_ID: unsetIfEmpty(processEnv.FUUL_OAUTH_CLIENT_ID),
     FUUL_OAUTH_REDIRECT_URI: unsetIfEmpty(processEnv.FUUL_OAUTH_REDIRECT_URI),
     FUUL_MCP_TOOL_TIMEOUT_MS: unsetIfEmpty(processEnv.FUUL_MCP_TOOL_TIMEOUT_MS),
+    FUUL_MCP_WRITE_TIMEOUT_MS: unsetIfEmpty(processEnv.FUUL_MCP_WRITE_TIMEOUT_MS),
     FUUL_MCP_PROJECT_API_KEY: unsetIfEmpty(processEnv.FUUL_MCP_PROJECT_API_KEY),
   });
   return {

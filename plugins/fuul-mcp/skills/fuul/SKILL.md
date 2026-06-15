@@ -29,7 +29,7 @@ You have access to the **Fuul** Model Context Protocol server (`fuul` in the too
 | Health | `ping` (no auth), `whoami` (session) |
 | Metadata (cached) | `list_chains`, `list_trigger_types`, `list_payout_schemas` |
 | Price references | `list_price_references` (before token-holder `create_trigger` when token may be unlisted) |
-| Projects / programs | `list_projects`, `get_project`, `list_incentives`, `get_incentive`, `get_trigger`, `create_trigger`, `delete_trigger`, `update_trigger`, `create_incentive`, `delete_incentive`, `update_payout_term` |
+| Projects / programs | `list_projects`, `get_project`, `list_incentives`, `get_incentive`, `get_trigger`, `create_trigger`, `delete_trigger`, `update_trigger`, `create_incentive`, `delete_incentive`, `update_payout_term`, `update_incentive_triggers`, `list_audiences`, `list_project_tiers`, `create_project_tier`, `update_project_tier`, `update_audience` |
 | Affiliate analytics | `get_affiliate_portal_stats`, `get_project_affiliate_total_stats`, `get_project_affiliates_breakdown` |
 | Managed affiliates (project API key) | `get_project_affiliate_public`, `create_project_affiliate_public`, `update_project_affiliate_public` |
 | Events (project API key) | `send_event`, `send_batch_events`, `check_event_status` |
@@ -112,6 +112,29 @@ The dashboard cannot change `context.token_address` after create; neither can `u
 6. If `delete_trigger` fails with HTTP 422 (trigger still linked): explain that incentives must be removed first, **or** skip delete and only `create_trigger` the new token tracker; user can re-link incentives manually.
 
 Do not “fix” a wrong token by PATCHing only `currency_expression` / `volume_currency_expression` — that leaves `contracts[].address` and `context.token_address` unchanged.
+
+## Tiered audience boost (tiers + audiences + payout groups)
+
+**Canonical source:** call `list_payout_schemas` and read `create_incentive_payload_guide.tiered_audience_boost_playbook` (wire format aligned with fuul-webapp `encode.ts` / fuul-server `PayoutGroupDto`). Do not invent alternate field names.
+
+| Layer | Role | Key fields |
+| --- | --- | --- |
+| Audience | User segment (conditions only) | `name`, `conditions` |
+| Project tier | Ranked audience → priority (rank 1 = highest) | `name`, `slug`, `rank`, `audience_id` |
+| Payout group | Reward row on incentive term | `project_tier_id`, `end_user_amount_percentage`, cap booleans |
+
+### Checklist
+
+| Step | Tool | Verify |
+| --- | --- | --- |
+| 1. Resolve segments | `list_audiences` | Audience UUIDs for each boosted segment |
+| 2. Ensure tiers | `list_project_tiers` or `create_project_tier` | One tier per boost; `rank` above Default Tier; note `project_tier_id` |
+| 3. Build payout term | `get_incentive` (patch) or `create_incentive` | `tier_type: "audience"`; amounts in `payout_groups[]` only; **`project_tier_id`** on boost groups (not `audience_id`); default rate = group without `project_tier_id` |
+| 4. Preview | `dry_run: true` on write | `body`, `_warnings`, `_validation_errors`, `_amount_rounding` |
+| 5. Execute | `confirmed: true` after user OK | `_publish_metadata_reminder` |
+| 6. Read back | `get_incentive` | Each group has `project_tier` populated; follow `_readback_reminder` |
+
+**Gotchas:** see `tiered_audience_boost_playbook.gotchas` in `list_payout_schemas` — especially `project_tier_id` not `audience_id`, no multiplier, preserve `base_currency`, dry_run ≠ done without `get_incentive` readback, tiers live / incentive edits draft until publish.
 
 ## Events (conversion tracking)
 
