@@ -23,6 +23,12 @@ Single map for tools ↔ HTTP, env, and write conventions. Documentation index: 
 | `create_incentive` | `POST .../incentives` | Bearer + dry_run / confirmed |
 | `delete_incentive` | `DELETE .../incentives/:conversionId` | Bearer + dry_run / confirmed |
 | `update_payout_term` | `PATCH .../conversions/:conversionId/payout_terms/:payoutTermId` | Bearer + dry_run / confirmed |
+| `update_incentive_triggers` | `PATCH .../conversions/:conversionId` (trigger_refs only) | Bearer + dry_run / confirmed |
+| `list_audiences` | `GET .../audiences` | Bearer |
+| `list_project_tiers` | `GET .../tiers` (optional `?include_payout_terms=true`) | Bearer |
+| `create_project_tier` | `POST .../tiers` | Bearer + dry_run / confirmed |
+| `update_project_tier` | `PATCH .../tiers/:tierId` | Bearer + dry_run / confirmed |
+| `update_audience` | `PATCH .../audiences/:audienceId` | Bearer + dry_run / confirmed |
 | `get_affiliate_portal_stats` | `GET /api/v1/projects/:projectId/affiliate-portal/stats` | Bearer |
 | `get_project_affiliate_total_stats` | `GET /api/v1/projects/:projectId/affiliate-portal/total-stats` | Bearer |
 | `get_project_affiliates_breakdown` | `GET /api/v1/projects/:projectId/affiliate-portal/global-breakdown` | Bearer |
@@ -72,6 +78,7 @@ Project list uses **`page`** (1-based) and optional **`query`**, matching the da
 | `FUUL_API_BASE_URL` | API **origin** only. Staging: `https://api.stg.fuul.xyz`. Production: `https://api.fuul.xyz`. |
 | `FUUL_MCP_PROJECT_API_KEY` | Optional default **project** API key for project-affiliates, events, and referrer/referral-code tools. Must include `service_role` for referrer mutations. Empty string is treated as unset. |
 | `FUUL_MCP_TOOL_TIMEOUT_MS` | Per-tool timeout (default `90000`). |
+| `FUUL_MCP_WRITE_TIMEOUT_MS` | Timeout for mutation tools that refresh project metadata before write (default `120000`). |
 
 ## Server expectations
 
@@ -82,6 +89,19 @@ Project list uses **`page`** (1-based) and optional **`query`**, matching the da
 ## Draft vs published
 
 MCP merges draft and published trigger UUIDs in `get_project` / incentive reads (`draft_trigger_id`, `published_trigger_id` per `ref`). Agent-facing guide: [plugins/fuul-mcp/skills/fuul/SKILL.md](../plugins/fuul-mcp/skills/fuul/SKILL.md) § *Draft vs published*. Implementation: `src/metadata-scope/`.
+
+## Tiered audience boost
+
+Audience-specific payout boosts use three layers: **audience** (segment) → **project tier** (rank + optional `audience_id`) → **payout group** (`project_tier_id` + amounts on the incentive term). Wire format matches fuul-webapp `src/modules/conversions/infra/encode.ts` (`buildTieredIncentiveAmounts`) and fuul-server `src/payouts/payout-terms/dto/payout-group.dto.ts`.
+
+| Step | MCP tool | HTTP |
+| --- | --- | --- |
+| List segments | `list_audiences` | `GET .../audiences` |
+| List / create tiers | `list_project_tiers`, `create_project_tier` | `GET` / `POST .../tiers` |
+| Wire boosts | `create_incentive`, `update_payout_term` | `POST .../incentives` / `PATCH .../payout_terms/:id` |
+| Verify | `get_incentive` | `GET .../incentives/:id` |
+
+**Canonical playbook** (workflow steps, wire format, gotchas): `list_payout_schemas` → `create_incentive_payload_guide.tiered_audience_boost_playbook`. Source: `src/incentives/tiered-audience-boost-guide.ts`. Agent checklist: [SKILL.md](../plugins/fuul-mcp/skills/fuul/SKILL.md) § *Tiered audience boost*.
 
 ## Further docs
 

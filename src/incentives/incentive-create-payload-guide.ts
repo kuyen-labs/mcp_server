@@ -3,6 +3,8 @@
  * Aligned with fuul-webapp conversions/infra/encode.ts (mapToIncentiveTypeMapper).
  */
 
+import { TIERED_AUDIENCE_BOOST_PLAYBOOK } from './tiered-audience-boost-guide.js';
+
 export type IncentiveRewardTypeId = 'fixed-reward' | 'variable-reward' | 'proportional-pool' | 'leaderboard' | 'tiered-audience-boost';
 
 export const CREATE_INCENTIVE_GLOBAL_GUIDE = {
@@ -44,14 +46,12 @@ export const CREATE_INCENTIVE_GLOBAL_GUIDE = {
         'pool_duration, pool_calculation_day_cron, pool_start_date, pool_end_date.',
     },
     'tiered-audience-boost': {
-      webapp_mapper: 'mapToVariableIncentiveDTO (tiered)',
+      webapp_mapper: 'mapToVariableIncentiveDTO + buildTieredIncentiveAmounts',
       scheme: 'pay-per-attribution',
       calculation_strategy: 'variable',
       notes:
-        'Set tier_type "audience". Do NOT set referral_amount / referral_amount_percentage on the term — amounts belong in payout_groups[]. ' +
-        'Variable end-user: end_user_amount_percentage per group (number, e.g. 0.3 = 30% of volume). ' +
-        'Audience boost group: audience_id + higher end_user_amount_percentage. Default rate: one group with neither audience_id nor project_tier_id. ' +
-        'MCP maps referral_amount inside a group → end_user_amount_percentage. No multiplier field exists.',
+        'Set tier_type "audience". Amounts only in payout_groups[] (project_tier_id, not audience_id). ' +
+        'Full workflow, wire format, and gotchas: create_incentive_payload_guide.tiered_audience_boost_playbook (same as list_payout_schemas).',
     },
   },
   workflow: [
@@ -60,15 +60,9 @@ export const CREATE_INCENTIVE_GLOBAL_GUIDE = {
     'Build payout_terms[] for the chosen reward type; create_incentive with dry_run then confirmed.',
   ],
   mcp_normalization:
-    'create_incentive runs preparePayoutTermBodyForWrite on each payout term (point fixed/pool/rank: rounds decimal amounts to integers; variable: maps referral_amount aliases to *_percentage; tiered: maps group aliases, strips term-level amounts, dry_run surfaces _validation_errors).',
-  tiered_audience_boost_faq: {
-    Q1_default_rate: 'Put the base rate in a payout_groups[] entry with no audience_id and no project_tier_id (default tier).',
-    Q2_audience_boost: 'Add another payout_groups[] entry with audience_id and a higher end_user_amount_percentage for members of that audience.',
-    Q3_field_names:
-      'Inside payout_groups use end_user_amount_percentage (not referral_amount at term level). MCP normalizes referral_amount → end_user_amount_percentage per group.',
-    Q4_multiplier: 'There is no multiplier field. Set explicit percentages on each group (e.g. default 0.3, boosted audience 0.45).',
-  },
-  reference: 'fuul-webapp src/modules/conversions/infra/encode.ts',
+    'create_incentive runs preparePayoutTermBodyForWrite on each payout term (point fixed/pool/rank: rounds decimal amounts to integers; variable: maps referral_amount aliases to *_percentage; tiered: maps group aliases, strips term-level amounts, injects cap booleans, surfaces _validation_errors and _warnings).',
+  tiered_audience_boost_playbook: TIERED_AUDIENCE_BOOST_PLAYBOOK,
+  reference: TIERED_AUDIENCE_BOOST_PLAYBOOK.sources.webapp_encode,
 } as const;
 
 /** Minimal create_incentive examples; replace TRIGGER_UUID. */
@@ -135,7 +129,7 @@ export const CREATE_INCENTIVE_EXAMPLES: Record<IncentiveRewardTypeId, { descript
     },
   },
   'tiered-audience-boost': {
-    description: 'Variable % of volume with audience-specific boosts (Dre Money / RAAC pattern)',
+    description: 'Variable % of volume with tier-based audience boosts via project tiers',
     payload: {
       name: 'MCP tiered audience boost',
       trigger_ids: ['<TRIGGER_UUID>'],
@@ -153,10 +147,16 @@ export const CREATE_INCENTIVE_EXAMPLES: Record<IncentiveRewardTypeId, { descript
           payout_groups: [
             {
               end_user_amount_percentage: 0.3,
+              payout_cap_enabled: false,
+              wallet_cap_enabled: false,
+              enduser_cap_enabled: false,
             },
             {
-              audience_id: '<AUDIENCE_UUID>',
+              project_tier_id: '<TIER_UUID>',
               end_user_amount_percentage: 0.45,
+              payout_cap_enabled: false,
+              wallet_cap_enabled: false,
+              enduser_cap_enabled: false,
             },
           ],
         },
