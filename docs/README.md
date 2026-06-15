@@ -5,6 +5,7 @@
 | [AGENTS.md](./AGENTS.md) | Maintainers, support, security review | Tool ↔ HTTP routes, env vars, write conventions |
 | [mcp-phase2/CONSUMER.md](./mcp-phase2/CONSUMER.md) | Integrators | Staging/production URLs and API expectations |
 | [mcp-phase2/tool-prompts.md](./mcp-phase2/tool-prompts.md) | Evals / QA | Sample natural-language prompts to exercise tools |
+| [mcp-phase2/tiered-audience-boost-eval.md](./mcp-phase2/tiered-audience-boost-eval.md) | Evals / QA | Tiered boost rubric, scenarios, trace scoring |
 
 End-user install and client setup: [README.md](../README.md) at the repository root.
 

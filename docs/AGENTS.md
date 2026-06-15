@@ -106,4 +106,5 @@ Audience-specific payout boosts use three layers: **audience** (segment) → **p
 ## Further docs
 
 - [mcp-phase2/tool-prompts.md](./mcp-phase2/tool-prompts.md) — sample prompts for LLM evals.
+- [mcp-phase2/tiered-audience-boost-eval.md](./mcp-phase2/tiered-audience-boost-eval.md) — tiered boost rubric, scenarios, `npm run eval:score-trace`.
 - [mcp-phase2/CONSUMER.md](./mcp-phase2/CONSUMER.md) — URLs and version notes.
