@@ -11,9 +11,25 @@ permissions:
   id-token: write
 
 jobs:
+  notify-workflow-start:
+    name: Release.NotifyStart
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Notify
+        uses: kuyen-labs/github-actions/slack-notify-status@main
+        with:
+          webhook_url: ${{ vars.SLACK_WEBHOOK_URL }}
+          title: '[:package: *@fuul/mcp-server*] ${{ github.workflow }} (${{ github.run_number }}): :large_yellow_circle: *STARTED*'
+
   release:
     name: Release
     runs-on: ubuntu-latest
+    needs: [notify-workflow-start]
+    if: always() && (needs.notify-workflow-start.result == 'success' || needs.notify-workflow-start.result == 'skipped')
 
     steps:
       - name: Generate GitHub App token
@@ -53,3 +69,48 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: npx semantic-release
+
+  notify-workflow-success:
+    name: Release.NotifySuccess
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && needs.release.result == 'success'
+    needs: [release]
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Notify
+        uses: kuyen-labs/github-actions/slack-notify-status@main
+        with:
+          webhook_url: ${{ vars.SLACK_WEBHOOK_URL }}
+          title: '[:package: *@fuul/mcp-server*] ${{ github.workflow }} (${{ github.run_number }}): :large_green_circle: *SUCCESS*'
+
+  notify-workflow-failure:
+    name: Release.NotifyFailure
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && needs.release.result == 'failure'
+    needs: [release]
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Notify
+        uses: kuyen-labs/github-actions/slack-notify-status@main
+        with:
+          webhook_url: ${{ vars.SLACK_WEBHOOK_URL }}
+          title: '[:package: *@fuul/mcp-server*] ${{ github.workflow }} (${{ github.run_number }}): :red_circle: *FAILURE*'
+
+  notify-workflow-cancellation:
+    name: Release.NotifyCancellation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && needs.release.result == 'cancelled'
+    needs: [release]
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Notify
+        uses: kuyen-labs/github-actions/slack-notify-status@main
+        with:
+          webhook_url: ${{ vars.SLACK_WEBHOOK_URL }}
+          title: '[:package: *@fuul/mcp-server*] ${{ github.workflow }} (${{ github.run_number }}): :x: *CANCELLED*'
