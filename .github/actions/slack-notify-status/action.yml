@@ -1,0 +1,72 @@
+name: 'Slack workflow status'
+description: 'Post workflow status to Slack via incoming webhook'
+inputs:
+  webhook_url:
+    description: 'Slack webhook URL'
+    required: true
+  title:
+    description: 'Message title (mrkdwn)'
+    required: true
+  links:
+    description: 'Links in markdown format'
+    default: ''
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Prepare
+      id: prepare
+      shell: bash
+      run: |
+        TITLE="${{ inputs.title }}"
+        REPO=$GITHUB_REPOSITORY
+        REPO_URL="https://github.com/$REPO"
+        ACTOR=$GITHUB_ACTOR
+        ACTOR_URL="https://github.com/$REPO/commits?author=$ACTOR"
+        SHA=$GITHUB_SHA
+        SHA_URL="https://github.com/$REPO/commit/$SHA"
+        REF=$GITHUB_REF_NAME
+        ACTION_URL="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+        BODY='
+          {
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "'"$TITLE"'"
+                }
+              },
+              {
+                "type": "context",
+                "elements": [
+                  {
+                    "type": "mrkdwn",
+                    "text": ">Of <'"$REPO_URL"'|'"$REPO"'> : <'"$SHA_URL"'|'"${SHA::7}"'> \n> By <'"$ACTOR_URL"'|'"$ACTOR"'> on `'"$REF"'`"
+                  }
+                ]
+              },
+              {
+                "type": "context",
+                "elements": [
+                  {
+                    "type": "mrkdwn",
+                    "text": ":link: <'"$ACTION_URL"'|Action>"
+                  }
+                ]
+              }
+            ]
+          }'
+
+        echo 'MESSAGE_BODY<<EOF' >> "$GITHUB_OUTPUT"
+        echo "$BODY" >> "$GITHUB_OUTPUT"
+        echo 'EOF' >> "$GITHUB_OUTPUT"
+
+    - name: Notify
+      shell: bash
+      env:
+        MESSAGE_BODY: ${{ steps.prepare.outputs.MESSAGE_BODY }}
+      run: |
+        curl -fsS -X POST -H 'Content-type: application/json' --data "$MESSAGE_BODY" "${{ inputs.webhook_url }}"

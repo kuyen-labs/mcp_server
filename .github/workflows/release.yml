@@ -20,7 +20,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Notify
-        uses: kuyen-labs/github-actions/slack-notify-status@main
+        uses: ./.github/actions/slack-notify-status
         with:
           webhook_url: ${{ vars.SLACK_WEBHOOK_URL }}
           title: '[:package: *@fuul/mcp-server*] ${{ github.workflow }} (${{ github.run_number }}): :large_yellow_circle: *STARTED*'
@@ -80,7 +80,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Notify
-        uses: kuyen-labs/github-actions/slack-notify-status@main
+        uses: ./.github/actions/slack-notify-status
         with:
           webhook_url: ${{ vars.SLACK_WEBHOOK_URL }}
           title: '[:package: *@fuul/mcp-server*] ${{ github.workflow }} (${{ github.run_number }}): :large_green_circle: *SUCCESS*'
@@ -95,7 +95,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Notify
-        uses: kuyen-labs/github-actions/slack-notify-status@main
+        uses: ./.github/actions/slack-notify-status
         with:
           webhook_url: ${{ vars.SLACK_WEBHOOK_URL }}
           title: '[:package: *@fuul/mcp-server*] ${{ github.workflow }} (${{ github.run_number }}): :red_circle: *FAILURE*'
@@ -110,7 +110,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Notify
-        uses: kuyen-labs/github-actions/slack-notify-status@main
+        uses: ./.github/actions/slack-notify-status
         with:
           webhook_url: ${{ vars.SLACK_WEBHOOK_URL }}
           title: '[:package: *@fuul/mcp-server*] ${{ github.workflow }} (${{ github.run_number }}): :x: *CANCELLED*'
