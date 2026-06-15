@@ -2,6 +2,19 @@ import type { FuulApiClient } from '../http/fuul-api-client.js';
 import { withTimeout } from '../util/with-timeout.js';
 import { enrichIncentivesListWithTriggerScope, enrichProjectWithMetadataScope, enrichSingleIncentiveWithTriggerScope } from './enrich-responses.js';
 
+const PROJECT_SCOPE_CACHE_TTL_MS = 30_000;
+
+type ProjectScopeCacheEntry = {
+  expiresAt: number;
+  value: Promise<Record<string, unknown>>;
+};
+
+const projectScopeCache = new Map<string, ProjectScopeCacheEntry>();
+
+export function clearProjectScopeCacheForTests(): void {
+  projectScopeCache.clear();
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
@@ -14,11 +27,23 @@ async function fetchCustomizations(api: FuulApiClient, projectId: string, toolTi
 }
 
 export async function loadProjectWithMetadataScope(api: FuulApiClient, projectId: string, toolTimeoutMs: number): Promise<Record<string, unknown>> {
-  const [draftProject, customizations] = await Promise.all([
-    withTimeout(api.getJson(`/api/v1/projects/${projectId}`), toolTimeoutMs, 'get_project'),
-    fetchCustomizations(api, projectId, toolTimeoutMs, 'get_project_customizations'),
-  ]);
-  return enrichProjectWithMetadataScope(asRecord(draftProject), customizations);
+  const now = Date.now();
+  const cached = projectScopeCache.get(projectId);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+
+  const value = (async () => {
+    const [draftProject, customizations] = await Promise.all([
+      withTimeout(api.getJson(`/api/v1/projects/${projectId}`), toolTimeoutMs, 'get_project'),
+      fetchCustomizations(api, projectId, toolTimeoutMs, 'get_project_customizations'),
+    ]);
+    return enrichProjectWithMetadataScope(asRecord(draftProject), customizations);
+  })();
+
+  projectScopeCache.set(projectId, { expiresAt: now + PROJECT_SCOPE_CACHE_TTL_MS, value });
+
+  return value;
 }
 
 export async function loadIncentivesListWithMetadataScope(api: FuulApiClient, projectId: string, toolTimeoutMs: number): Promise<unknown> {

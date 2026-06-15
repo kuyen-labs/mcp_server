@@ -7,7 +7,7 @@ import {
   projectAffiliatesBreakdownPath,
   projectAffiliateTotalStatsPath,
 } from './affiliate-portal/affiliate-portal-queries.js';
-import { stringifyToolPayload } from './agent/publish-metadata-reminder.js';
+import { stringifyPayoutWritePayload, stringifyToolPayload } from './agent/publish-metadata-reminder.js';
 import { assertWriteConfirmedOrDryRun, WriteNotConfirmedError } from './agent/write-confirmation.js';
 import { OAuthClient } from './auth/oauth-client.js';
 import { TokenStore } from './auth/token-store.js';
@@ -29,6 +29,7 @@ import { attachDraftIdResolution, resolveDraftConversionIdForWrite, resolveDraft
 import { attachAmountRounding, preparePayoutTermBodyForWrite } from './payouts/normalize-payout-term-body.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
 import { attachValidationErrors } from './payouts/payout-term-amounts-validation.js';
+import { attachPayoutTermWarnings, payoutTermHasTierType } from './payouts/payout-term-warnings.js';
 import {
   runDeleteUserReferrer,
   runGetUserReferrer,
@@ -42,6 +43,7 @@ import {
   CHECK_EVENT_STATUS_DESCRIPTION,
   CREATE_INCENTIVE_DESCRIPTION,
   CREATE_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
+  CREATE_PROJECT_TIER_DESCRIPTION,
   CREATE_TRIGGER_DESCRIPTION,
   DELETE_INCENTIVE_DESCRIPTION,
   DELETE_TRIGGER_DESCRIPTION,
@@ -57,11 +59,13 @@ import {
   GET_PROJECT_INCENTIVES_BREAKDOWN_DESCRIPTION,
   GET_TRIGGER_DESCRIPTION,
   GET_USER_REFERRER_DESCRIPTION,
+  LIST_AUDIENCES_DESCRIPTION,
   LIST_CHAINS_DESCRIPTION,
   LIST_INCENTIVES_DESCRIPTION,
   LIST_PAYOUT_SCHEMAS_DESCRIPTION,
   LIST_PAYOUTS_PENDING_APPROVAL_DESCRIPTION,
   LIST_PRICE_REFERENCES_DESCRIPTION,
+  LIST_PROJECT_TIERS_DESCRIPTION,
   LIST_PROJECTS_DESCRIPTION,
   LIST_REWARDS_PAYOUTS_DESCRIPTION,
   LIST_TRIGGER_TYPES_DESCRIPTION,
@@ -89,6 +93,8 @@ import {
   createIncentiveInputSchema,
   createProjectAffiliatePublicFieldsSchema,
   createProjectAffiliatePublicInputSchema,
+  createProjectTierFieldsSchema,
+  createProjectTierInputSchema,
   createTriggerFieldsSchema,
   createTriggerInputSchema,
   deleteIncentiveFieldsSchema,
@@ -108,9 +114,11 @@ import {
   getTriggerInputSchema,
   getUserReferrerFieldsSchema,
   getUserReferrerInputSchema,
+  listAudiencesInputSchema,
   listPayoutsPendingApprovalSchema,
   listPriceReferencesInputSchema,
   listProjectsInputSchema,
+  listProjectTiersInputSchema,
   listRewardsPayoutsSchema,
   payoutBatchActionInputSchema,
   projectIdParamSchema,
@@ -148,7 +156,7 @@ import { ToolTimeoutError, withTimeout } from './util/with-timeout.js';
 function toolErrorPayload(e: unknown, httpDetail = 'Request failed'): { content: [{ type: 'text'; text: string }]; isError: true } {
   const message =
     e instanceof ToolTimeoutError
-      ? `${e.message} Increase FUUL_MCP_TOOL_TIMEOUT_MS if the API is slow.`
+      ? `${e.message} Increase FUUL_MCP_TOOL_TIMEOUT_MS or FUUL_MCP_WRITE_TIMEOUT_MS if the API is slow.`
       : e instanceof NotLoggedInError
         ? e.message
         : e instanceof WriteNotConfirmedError
@@ -184,6 +192,7 @@ async function main(): Promise<void> {
   const api = new FuulApiClient(env, store, oauth);
   const metadata = new MetadataService(api);
   const toolTimeoutMs = env.FUUL_MCP_TOOL_TIMEOUT_MS;
+  const writeTimeoutMs = env.FUUL_MCP_WRITE_TIMEOUT_MS;
 
   const server = new McpServer({
     name: '@fuul/mcp-server',
@@ -372,8 +381,9 @@ async function main(): Promise<void> {
   server.tool('create_incentive', CREATE_INCENTIVE_DESCRIPTION, createIncentiveFieldsSchema.shape, async (args) => {
     try {
       const parsed = createIncentiveInputSchema.parse(args);
-      const data = await withTimeout(runCreateIncentive(api, parsed, toolTimeoutMs), toolTimeoutMs, 'create_incentive');
-      return { content: [{ type: 'text', text: stringifyToolPayload(data, parsed.dry_run) }] };
+      const tiered = (parsed.payout_terms as Record<string, unknown>[]).some(payoutTermHasTierType);
+      const data = await withTimeout(runCreateIncentive(api, parsed, writeTimeoutMs), writeTimeoutMs, 'create_incentive');
+      return { content: [{ type: 'text', text: stringifyPayoutWritePayload(data, parsed.dry_run, tiered) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to create incentive');
     }
@@ -674,9 +684,15 @@ async function main(): Promise<void> {
     try {
       const parsed = updatePayoutTermInputSchema.parse(args);
       assertWriteConfirmedOrDryRun(parsed);
-      const conversionResolution = await resolveDraftConversionIdForWrite(api, parsed.project_id, parsed.conversion_id, toolTimeoutMs);
+      const conversionResolution = await resolveDraftConversionIdForWrite(api, parsed.project_id, parsed.conversion_id, writeTimeoutMs);
       const path = `/api/v1/projects/${parsed.project_id}/conversions/${conversionResolution.resolved_draft_conversion_id}/payout_terms/${parsed.payout_term_id}`;
-      const { body: patchBody, amountRounding, validationErrors } = preparePayoutTermBodyForWrite(parsed.payout_term as Record<string, unknown>);
+      const {
+        body: patchBody,
+        amountRounding,
+        validationErrors,
+        warnings,
+      } = preparePayoutTermBodyForWrite(parsed.payout_term as Record<string, unknown>);
+      const tiered = payoutTermHasTierType(patchBody);
       if (parsed.dry_run === true) {
         return {
           content: [
@@ -684,9 +700,12 @@ async function main(): Promise<void> {
               type: 'text',
               text: JSON.stringify(
                 attachDraftIdResolution(
-                  attachValidationErrors(
-                    attachAmountRounding({ dry_run: true, would_patch: path, body: patchBody }, amountRounding),
-                    validationErrors,
+                  attachPayoutTermWarnings(
+                    attachValidationErrors(
+                      attachAmountRounding({ dry_run: true, would_patch: path, body: patchBody }, amountRounding),
+                      validationErrors,
+                    ),
+                    warnings,
                   ),
                   conversionResolution,
                 ),
@@ -697,21 +716,76 @@ async function main(): Promise<void> {
           ],
         };
       }
-      const data = await withTimeout(api.patchJson(path, patchBody), toolTimeoutMs, 'update_payout_term');
+      const data = await withTimeout(api.patchJson(path, patchBody), writeTimeoutMs, 'update_payout_term');
       const responsePayload =
         data !== null && typeof data === 'object' && !Array.isArray(data)
-          ? attachValidationErrors(attachAmountRounding(data as Record<string, unknown>, amountRounding), validationErrors)
-          : attachValidationErrors(attachAmountRounding({ result: data }, amountRounding), validationErrors);
+          ? attachPayoutTermWarnings(
+              attachValidationErrors(attachAmountRounding(data as Record<string, unknown>, amountRounding), validationErrors),
+              warnings,
+            )
+          : attachPayoutTermWarnings(attachValidationErrors(attachAmountRounding({ result: data }, amountRounding), validationErrors), warnings);
       return {
         content: [
           {
             type: 'text',
-            text: stringifyToolPayload(attachDraftIdResolution(responsePayload, conversionResolution), parsed.dry_run),
+            text: stringifyPayoutWritePayload(attachDraftIdResolution(responsePayload, conversionResolution), parsed.dry_run, tiered),
           },
         ],
       };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to update payout term');
+    }
+  });
+
+  server.tool('list_audiences', LIST_AUDIENCES_DESCRIPTION, listAudiencesInputSchema.shape, async (args) => {
+    try {
+      const parsed = listAudiencesInputSchema.parse(args);
+      const data = await withTimeout(api.getJson(`/api/v1/projects/${parsed.project_id}/audiences`), toolTimeoutMs, 'list_audiences');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to list audiences');
+    }
+  });
+
+  server.tool('list_project_tiers', LIST_PROJECT_TIERS_DESCRIPTION, listProjectTiersInputSchema.shape, async (args) => {
+    try {
+      const parsed = listProjectTiersInputSchema.parse(args);
+      const query = compactQuery({ include_payout_terms: parsed.include_payout_terms === true ? true : undefined });
+      const data = await withTimeout(api.getJson(`/api/v1/projects/${parsed.project_id}/tiers`, { query }), toolTimeoutMs, 'list_project_tiers');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to list project tiers');
+    }
+  });
+
+  server.tool('create_project_tier', CREATE_PROJECT_TIER_DESCRIPTION, createProjectTierFieldsSchema.shape, async (args) => {
+    try {
+      const parsed = createProjectTierInputSchema.parse(args);
+      assertWriteConfirmedOrDryRun(parsed);
+      const path = `/api/v1/projects/${parsed.project_id}/tiers`;
+      const body: Record<string, unknown> = {
+        name: parsed.name,
+        slug: parsed.slug,
+        rank: parsed.rank,
+      };
+      if (parsed.description !== undefined) {
+        body.description = parsed.description;
+      }
+      if (parsed.audience_id !== undefined) {
+        body.audience_id = parsed.audience_id;
+      }
+      if (parsed.requires_manual_project_approval !== undefined) {
+        body.requires_manual_project_approval = parsed.requires_manual_project_approval;
+      }
+      if (parsed.dry_run === true) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ dry_run: true, would_post: path, body }, null, 2) }],
+        };
+      }
+      const data = await withTimeout(api.postJson(path, body), toolTimeoutMs, 'create_project_tier');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (e) {
+      return toolErrorPayload(e, 'Failed to create project tier');
     }
   });
 

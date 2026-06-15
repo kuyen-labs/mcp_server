@@ -114,6 +114,35 @@ export const updateAudienceInputSchema = updateAudienceFieldsSchema.refine(
 
 export type UpdateAudienceInput = z.infer<typeof updateAudienceInputSchema>;
 
+export const listAudiencesInputSchema = projectIdParamSchema;
+
+export type ListAudiencesInput = z.infer<typeof listAudiencesInputSchema>;
+
+export const listProjectTiersInputSchema = projectIdParamSchema.extend({
+  include_payout_terms: z.boolean().optional().describe('When true, forwards ?include_payout_terms=true to include linked payout terms per tier.'),
+});
+
+export type ListProjectTiersInput = z.infer<typeof listProjectTiersInputSchema>;
+
+/** Registered on MCP tools; use {@link createProjectTierInputSchema} in handlers. */
+export const createProjectTierFieldsSchema = writeConfirmationFieldsSchema.extend({
+  project_id: uuid,
+  name: z.string().min(1).max(100),
+  slug: z
+    .string()
+    .min(1)
+    .max(50)
+    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'slug must be lowercase kebab-case (e.g. "week-1")'),
+  rank: z.coerce.number().int().min(1),
+  description: z.string().min(1).max(500).optional(),
+  audience_id: z.string().uuid().optional(),
+  requires_manual_project_approval: z.boolean().optional(),
+});
+
+export const createProjectTierInputSchema = createProjectTierFieldsSchema;
+
+export type CreateProjectTierInput = z.infer<typeof createProjectTierInputSchema>;
+
 /** Registered on MCP tools; use {@link updateTriggerInputSchema} in handlers. */
 export const updateTriggerFieldsSchema = writeConfirmationFieldsSchema.extend({
   project_id: uuid,
