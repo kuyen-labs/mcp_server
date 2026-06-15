@@ -3,6 +3,7 @@ import type { FuulApiClient } from '../http/fuul-api-client.js';
 import { attachDraftIdResolution, resolveDraftConversionIdForWrite, resolveDraftTriggerIdsForWrite } from '../metadata-scope/resolve-draft-ids.js';
 import { type AmountRoundingNotice, attachAmountRounding, preparePayoutTermBodyForWrite } from '../payouts/normalize-payout-term-body.js';
 import { attachValidationErrors, type PayoutTermValidationError } from '../payouts/payout-term-amounts-validation.js';
+import { attachPayoutTermWarnings, type PayoutTermWarning } from '../payouts/payout-term-warnings.js';
 import type { CreateIncentiveInput, DeleteIncentiveInput, UpdateIncentiveTriggersInput } from '../tools/tool-schemas.js';
 
 function prefixField(prefix: string, field: string): string {
@@ -16,9 +17,11 @@ function preparePayoutTermsForWrite(
   payout_terms: Record<string, unknown>[];
   amountRounding: AmountRoundingNotice[];
   validationErrors: PayoutTermValidationError[];
+  warnings: PayoutTermWarning[];
 } {
   const amountRounding: AmountRoundingNotice[] = [];
   const validationErrors: PayoutTermValidationError[] = [];
+  const warnings: PayoutTermWarning[] = [];
 
   const preparedTerms = payoutTerms.map((term, index) => {
     const termPrefix = `${fieldPrefix}[${index}]`;
@@ -38,10 +41,17 @@ function preparePayoutTermsForWrite(
       });
     }
 
+    for (const warning of prepared.warnings) {
+      warnings.push({
+        ...warning,
+        property: prefixField(termPrefix, warning.property),
+      });
+    }
+
     return prepared.body;
   });
 
-  return { payout_terms: preparedTerms, amountRounding, validationErrors };
+  return { payout_terms: preparedTerms, amountRounding, validationErrors, warnings };
 }
 
 function buildCreateIncentiveBody(
@@ -51,8 +61,9 @@ function buildCreateIncentiveBody(
   body: Record<string, unknown>;
   amountRounding: AmountRoundingNotice[];
   validationErrors: PayoutTermValidationError[];
+  warnings: PayoutTermWarning[];
 } {
-  const { payout_terms, amountRounding, validationErrors } = preparePayoutTermsForWrite(
+  const { payout_terms, amountRounding, validationErrors, warnings } = preparePayoutTermsForWrite(
     input.payout_terms as Record<string, unknown>[],
     'payout_terms',
   );
@@ -65,6 +76,7 @@ function buildCreateIncentiveBody(
     },
     amountRounding,
     validationErrors,
+    warnings,
   };
 }
 
@@ -72,8 +84,9 @@ function attachWritePreviewMetadata<T extends Record<string, unknown>>(
   payload: T,
   amountRounding: AmountRoundingNotice[],
   validationErrors: PayoutTermValidationError[],
-): T & { _amount_rounding?: AmountRoundingNotice[]; _validation_errors?: PayoutTermValidationError[] } {
-  return attachValidationErrors(attachAmountRounding(payload, amountRounding), validationErrors);
+  warnings: PayoutTermWarning[] = [],
+): T & { _amount_rounding?: AmountRoundingNotice[]; _validation_errors?: PayoutTermValidationError[]; _warnings?: PayoutTermWarning[] } {
+  return attachPayoutTermWarnings(attachValidationErrors(attachAmountRounding(payload, amountRounding), validationErrors), warnings);
 }
 
 export async function runCreateIncentive(api: FuulApiClient, input: CreateIncentiveInput, toolTimeoutMs: number): Promise<unknown> {
@@ -81,7 +94,7 @@ export async function runCreateIncentive(api: FuulApiClient, input: CreateIncent
   const triggerResolutions = await resolveDraftTriggerIdsForWrite(api, input.project_id, input.trigger_ids, toolTimeoutMs);
   const resolvedTriggerIds = triggerResolutions.map((row) => row.resolved_draft_trigger_id);
   const path = `/api/v1/projects/${input.project_id}/incentives`;
-  const { body, amountRounding, validationErrors } = buildCreateIncentiveBody(input, resolvedTriggerIds);
+  const { body, amountRounding, validationErrors, warnings } = buildCreateIncentiveBody(input, resolvedTriggerIds);
 
   if (input.dry_run === true) {
     return attachDraftIdResolution(
@@ -93,6 +106,7 @@ export async function runCreateIncentive(api: FuulApiClient, input: CreateIncent
         },
         amountRounding,
         validationErrors,
+        warnings,
       ),
       { triggers: triggerResolutions },
     );
@@ -101,8 +115,8 @@ export async function runCreateIncentive(api: FuulApiClient, input: CreateIncent
   const result = await api.postJson(path, body);
   const responsePayload =
     result !== null && typeof result === 'object' && !Array.isArray(result)
-      ? attachWritePreviewMetadata(result as Record<string, unknown>, amountRounding, validationErrors)
-      : attachWritePreviewMetadata({ result }, amountRounding, validationErrors);
+      ? attachWritePreviewMetadata(result as Record<string, unknown>, amountRounding, validationErrors, warnings)
+      : attachWritePreviewMetadata({ result }, amountRounding, validationErrors, warnings);
   return attachDraftIdResolution(responsePayload, { triggers: triggerResolutions });
 }
 
