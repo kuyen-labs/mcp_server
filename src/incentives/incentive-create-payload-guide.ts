@@ -3,6 +3,7 @@
  * Aligned with fuul-webapp conversions/infra/encode.ts (mapToIncentiveTypeMapper).
  */
 
+import { POOL_PAYOUT_PLAYBOOK } from './pool-payout-guide.js';
 import { TIERED_AUDIENCE_BOOST_PLAYBOOK } from './tiered-audience-boost-guide.js';
 
 export type IncentiveRewardTypeId = 'fixed-reward' | 'variable-reward' | 'proportional-pool' | 'leaderboard' | 'tiered-audience-boost';
@@ -35,8 +36,14 @@ export const CREATE_INCENTIVE_GLOBAL_GUIDE = {
       webapp_mapper: 'mapToPoolIncentiveDTO',
       scheme: 'pool',
       notes:
-        'Requires amount_source, pool_amount, pool_duration (hours), pool_calculation_day_cron (e.g. "*" for daily). ' +
-        'Optional pool_start_date, pool_end_date, pool_distribution_mode ("linear" | "square_root").',
+        'Requires amount_source, pool_amount (fixed per cycle), pool_duration (hours), pool_calculation_day_cron (e.g. "*" for daily). ' +
+        'Optional pool_start_date, pool_end_date, pool_distribution_mode ("linear" | "square_root"). ' +
+        'Full mechanics and unsupported capabilities: create_incentive_payload_guide.pool_payout_playbook.',
+      unsupported_capabilities_summary: [
+        'No dynamic/volume-banded pool sizing',
+        'pool_amount does not scale with network volume',
+        'payee_type "both" not supported',
+      ],
     },
     leaderboard: {
       webapp_mapper: 'mapToLeaderboardIncentiveDTO',
@@ -62,6 +69,7 @@ export const CREATE_INCENTIVE_GLOBAL_GUIDE = {
   mcp_normalization:
     'create_incentive runs preparePayoutTermBodyForWrite on each payout term (point fixed/pool/rank: rounds decimal amounts to integers; variable: maps referral_amount aliases to *_percentage; tiered: maps group aliases, strips term-level amounts, injects cap booleans, surfaces _validation_errors and _warnings).',
   tiered_audience_boost_playbook: TIERED_AUDIENCE_BOOST_PLAYBOOK,
+  pool_payout_playbook: POOL_PAYOUT_PLAYBOOK,
   reference: TIERED_AUDIENCE_BOOST_PLAYBOOK.sources.webapp_encode,
 } as const;
 
