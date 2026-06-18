@@ -17,6 +17,7 @@ import { runCheckEventStatus, runSendBatchEvents, runSendEvent } from './events/
 import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-api-client.js';
 import { MissingProjectApiKeyError, resolveProjectApiKeyBearer } from './http/project-api-key-bearer.js';
 import { incentiveHistoryPath, incentiveStatsPath, projectIncentivesBreakdownPath } from './incentive-analytics/incentive-analytics-queries.js';
+import { enrichIncentivesListWithPoolFlags,enrichIncentiveWithPoolCapabilities } from './incentives/enrich-incentive-pool-capabilities.js';
 import { enrichPayoutSchemasResponse } from './incentives/incentive-create-payload-guide.js';
 import { runCreateIncentive, runDeleteIncentive, runUpdateIncentiveTriggers } from './incentives/incentive-write-handlers.js';
 import { MetadataService } from './metadata/metadata-service.js';
@@ -297,7 +298,8 @@ async function main(): Promise<void> {
     try {
       const { project_id } = projectIdParamSchema.parse(args);
       const data = await loadIncentivesListWithMetadataScope(api, project_id, toolTimeoutMs);
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      const enriched = enrichIncentivesListWithPoolFlags(Array.isArray(data) ? data : []);
+      return { content: [{ type: 'text', text: JSON.stringify(enriched, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to list incentives');
     }
@@ -307,7 +309,9 @@ async function main(): Promise<void> {
     try {
       const { project_id, conversion_id } = getIncentiveInputSchema.parse(args);
       const data = await loadIncentiveWithMetadataScope(api, project_id, conversion_id, toolTimeoutMs);
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      const record = data !== null && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+      const enriched = record ? enrichIncentiveWithPoolCapabilities(record) : data;
+      return { content: [{ type: 'text', text: JSON.stringify(enriched, null, 2) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to load incentive');
     }
