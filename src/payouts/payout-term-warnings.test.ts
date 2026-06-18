@@ -30,4 +30,23 @@ describe('collectPayoutTermWarnings', () => {
 
     expect(warnings).toEqual([]);
   });
+
+  it('warns when pool term uses payee_type both', () => {
+    const warnings = collectPayoutTermWarnings({
+      scheme: 'pool',
+      payee_type: 'both',
+      amount_source: 'volume',
+    });
+
+    expect(warnings).toEqual([expect.objectContaining({ property: 'payee_type' })]);
+  });
+
+  it('warns when pool term includes volume_bands field', () => {
+    const warnings = collectPayoutTermWarnings({
+      scheme: 'pool',
+      volume_bands: [{ min: 0, max: 1000, rate: 0.1 }],
+    });
+
+    expect(warnings.some((w) => w.property === 'volume_bands')).toBe(true);
+  });
 });
