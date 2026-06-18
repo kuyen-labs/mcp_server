@@ -70,7 +70,10 @@ export const updatePayoutTermInputSchema = writeConfirmationFieldsSchema.extend(
   project_id: uuid,
   conversion_id: uuid.describe('Incentive (conversion) UUID'),
   payout_term_id: uuid,
-  payout_term: payoutTermSchema.describe('Full payout term payload as returned by get_incentive / GET payout_term, with edits applied.'),
+  payout_term: payoutTermSchema.describe(
+    'Full payout term payload as returned by get_incentive / GET payout_term, with edits applied. ' +
+      'For scheme pool: see list_payout_schemas pool_payout_playbook — pool_amount is fixed per cycle.',
+  ),
 });
 
 export type UpdatePayoutTermInput = z.infer<typeof updatePayoutTermInputSchema>;
@@ -235,7 +238,7 @@ export const createIncentiveFieldsSchema = writeConfirmationFieldsSchema.extend(
     .min(1)
     .describe(
       'PayoutTermDto[] (min 1). Use list_payout_schemas reward_types[].create_payload_example. ' +
-        'Schemes: pay-per-attribution (fixed/variable), pool, rank. See create_incentive_payload_guide.',
+        'Schemes: pay-per-attribution (fixed/variable), pool, rank. For pool: pool_payout_playbook defines editable fields and unsupported capabilities.',
     ),
 });
 
