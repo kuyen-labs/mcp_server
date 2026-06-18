@@ -8,6 +8,11 @@ export type PayoutTermValidationError = {
   message: string;
 };
 
+const MAX_POOL_DURATION_HOURS = 365 * 24;
+const VALID_POOL_CRON_VALUES = new Set(['*', '0', '1', '2', '3', '4', '5', '6']);
+const VALID_POOL_AMOUNT_SOURCES = new Set(['volume', 'revenue']);
+const VALID_POOL_DISTRIBUTION_MODES = new Set(['linear', 'square_root']);
+
 const TERM_AMOUNT_FIELDS = [
   'referral_amount',
   'referrer_amount',
@@ -46,6 +51,66 @@ function paysEndUser(body: Record<string, unknown>): boolean {
 function hasTierType(body: Record<string, unknown>): boolean {
   const tierType = body.tier_type;
   return tierType !== undefined && tierType !== null && String(tierType).trim() !== '';
+}
+
+function isPoolScheme(body: Record<string, unknown>): boolean {
+  return String(body.scheme ?? '').toLowerCase() === 'pool';
+}
+
+function isPositiveInt(value: unknown): boolean {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0;
+}
+
+function validatePoolPayoutTerm(body: Record<string, unknown>, errors: PayoutTermValidationError[]): void {
+  if (!isPresent(body.amount_source)) {
+    pushError(errors, 'amount_source', 'amount_source is required for scheme pool');
+  } else if (!VALID_POOL_AMOUNT_SOURCES.has(String(body.amount_source).toLowerCase())) {
+    pushError(errors, 'amount_source', 'amount_source must be "volume" or "revenue" for scheme pool (attribution-count is not supported)');
+  }
+
+  if (!isPresent(body.pool_amount)) {
+    pushError(errors, 'pool_amount', 'pool_amount is required for scheme pool');
+  } else if (!isPositiveBigIntString(body.pool_amount)) {
+    pushError(errors, 'pool_amount', 'pool_amount must be a positive integer string');
+  }
+
+  if (!isPresent(body.pool_duration)) {
+    pushError(errors, 'pool_duration', 'pool_duration is required for scheme pool');
+  } else if (!isPositiveInt(body.pool_duration)) {
+    pushError(errors, 'pool_duration', 'pool_duration must be a positive integer (hours)');
+  } else if (Number(body.pool_duration) > MAX_POOL_DURATION_HOURS) {
+    pushError(errors, 'pool_duration', `pool_duration must be at most ${MAX_POOL_DURATION_HOURS} hours`);
+  }
+
+  if (!isPresent(body.pool_calculation_day_cron)) {
+    pushError(errors, 'pool_calculation_day_cron', 'pool_calculation_day_cron is required for scheme pool');
+  } else if (!VALID_POOL_CRON_VALUES.has(String(body.pool_calculation_day_cron))) {
+    pushError(errors, 'pool_calculation_day_cron', 'pool_calculation_day_cron must be "*" or "0"–"6" (UTC weekday)');
+  }
+
+  const distributionMode = body.pool_distribution_mode;
+  if (isPresent(distributionMode) && !VALID_POOL_DISTRIBUTION_MODES.has(String(distributionMode).toLowerCase())) {
+    pushError(errors, 'pool_distribution_mode', 'pool_distribution_mode must be "linear" or "square_root"');
+  }
+
+  if (isPresent(body.calculation_strategy)) {
+    pushError(errors, 'calculation_strategy', 'calculation_strategy is not used for scheme pool — remove it');
+  }
+
+  for (const field of TERM_AMOUNT_FIELDS) {
+    if (isPresent(body[field])) {
+      pushError(errors, field, `${field} is not used for scheme pool — use pool_amount and pool window fields`);
+    }
+  }
+
+  const unsupportedPoolFields = ['pool_amount_formula', 'dynamic_pool_amount', 'volume_bands', 'pool_tiers', 'pool_amount_percentage'] as const;
+
+  for (const field of unsupportedPoolFields) {
+    if (isPresent(body[field])) {
+      pushError(errors, field, `${field} is not supported — pool_amount is fixed per cycle; dynamic/volume-banded pools are not available`);
+    }
+  }
 }
 
 function isPresent(value: unknown): boolean {
@@ -154,6 +219,11 @@ function validateNonTiered(body: Record<string, unknown>, errors: PayoutTermVali
 export function validatePayoutTermAmounts(body: Record<string, unknown>): PayoutTermValidationError[] {
   const errors: PayoutTermValidationError[] = [];
 
+  if (isPoolScheme(body)) {
+    validatePoolPayoutTerm(body, errors);
+    return errors;
+  }
+
   if (hasTierType(body)) {
     for (const field of TERM_AMOUNT_FIELDS) {
       if (isPresent(body[field])) {
@@ -179,6 +249,10 @@ export function validatePayoutTermAmounts(body: Record<string, unknown>): Payout
 
   validateNonTiered(body, errors);
   return errors;
+}
+
+export function payoutTermHasPoolScheme(body: Record<string, unknown>): boolean {
+  return isPoolScheme(body);
 }
 
 export function attachValidationErrors<T extends Record<string, unknown>>(
