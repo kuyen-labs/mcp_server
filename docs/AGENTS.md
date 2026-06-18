@@ -103,6 +103,20 @@ Audience-specific payout boosts use three layers: **audience** (segment) → **p
 
 **Canonical playbook** (workflow steps, wire format, gotchas): `list_payout_schemas` → `create_incentive_payload_guide.tiered_audience_boost_playbook`. Source: `src/incentives/tiered-audience-boost-guide.ts`. Agent checklist: [SKILL.md](../plugins/fuul-mcp/skills/fuul/SKILL.md) § *Tiered audience boost*.
 
+## Proportional pool payout
+
+Proportional pool incentives (`scheme: pool`, reward type `proportional-pool`) distribute a **fixed `pool_amount` each cycle** pro-rata by eligible volume/revenue share. Product behavior matches fuul-server pool calculation (`create-payout-pool-shares.query.ts`, `pool.payout-calculation-strategy.ts`) and webapp `mapToPoolIncentiveDTO`.
+
+| Step | MCP tool | HTTP |
+| --- | --- | --- |
+| Load playbook | `list_payout_schemas` | `GET .../metadata/payout-schemas` (enriched) |
+| Analyze / inspect | `get_incentive`, `list_incentives` | `GET .../incentives` (+ `_pool_capability_boundary` on get) |
+| Edit | `create_incentive`, `update_payout_term` | `POST .../incentives` / `PATCH .../payout_terms/:id` |
+
+**Canonical playbook** (mechanics, editable fields, **unsupported_capabilities**): `list_payout_schemas` → `create_incentive_payload_guide.pool_payout_playbook`. Source: `src/incentives/pool-payout-guide.ts`. Agent checklist: [SKILL.md](../plugins/fuul-mcp/skills/fuul/SKILL.md) § *Proportional pool payout*.
+
+**Not supported:** dynamic / volume-banded pool sizing, pool budget formulas, `payee_type: both`.
+
 ## Further docs
 
 - [mcp-phase2/tool-prompts.md](./mcp-phase2/tool-prompts.md) — sample prompts for LLM evals.

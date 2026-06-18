@@ -9,12 +9,14 @@ describe('enrichPayoutSchemasResponse', () => {
       create_incentive_payload_guide: {
         endpoint: string;
         tiered_audience_boost_playbook: { workflow_steps: unknown[] };
+        pool_payout_playbook: { workflow_steps: unknown[]; unsupported_capabilities: string[] };
       };
       reward_types: Array<{ id: string; create_payload_example: { payout_terms: unknown[] } }>;
     };
 
     expect(enriched.create_incentive_payload_guide.endpoint).toContain('/incentives');
     expect(enriched.create_incentive_payload_guide.tiered_audience_boost_playbook.workflow_steps).toHaveLength(6);
+    expect(enriched.create_incentive_payload_guide.pool_payout_playbook.workflow_steps).toHaveLength(6);
     expect(enriched.reward_types).toHaveLength(5);
     expect(enriched.reward_types.map((row) => row.id)).toEqual([
       'fixed-reward',

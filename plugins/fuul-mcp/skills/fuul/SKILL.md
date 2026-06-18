@@ -136,6 +136,30 @@ Do not “fix” a wrong token by PATCHing only `currency_expression` / `volume_
 
 **Gotchas:** see `tiered_audience_boost_playbook.gotchas` in `list_payout_schemas` — especially `project_tier_id` not `audience_id`, no multiplier, preserve `base_currency`, dry_run ≠ done without `get_incentive` readback, tiers live / incentive edits draft until publish.
 
+## Proportional pool payout (scheme pool)
+
+**Canonical source:** call `list_payout_schemas` and read `create_incentive_payload_guide.pool_payout_playbook`. `get_incentive` attaches `_pool_capability_boundary` when any payout term uses `scheme: pool`.
+
+| Concept | Rule |
+| --- | --- |
+| `pool_amount` | **Fixed per cycle** — not derived from network volume |
+| Distribution | Pro-rata by volume/revenue share × fixed `pool_amount` each cycle |
+| `pool_distribution_mode` | `linear` or `square_root` only — square_root is NOT dynamic pool sizing |
+| Unsupported | Dynamic / volume-banded pools, `payee_type: both`, `amount_source: attribution-count` |
+
+### Checklist
+
+| Step | Tool | Verify |
+| --- | --- | --- |
+| 1. Load boundaries | `list_payout_schemas` or `get_incentive` | Read `pool_payout_playbook` or `_pool_capability_boundary` |
+| 2. Inspect term | `get_incentive` | `draft.payout_terms[]` with `scheme: pool` |
+| 3. Propose changes | analysis / `update_payout_term` | Only `editable_fields`; never suggest unsupported capabilities as PATCH |
+| 4. Preview | `dry_run: true` | `_warnings`, `_validation_errors` |
+| 5. Execute | `confirmed: true` | `_publish_metadata_reminder` |
+| 6. Read back | `get_incentive` | Pool fields + `_pool_capability_boundary` |
+
+**Gotchas:** see `pool_payout_playbook.gotchas` — especially `pool_duration` in hours, fixed `pool_amount`, no dynamic/volume-banded pools.
+
 ## Events (conversion tracking)
 
 - **`send_event`**: one real-time conversion event. Required: `name`, `user_identifier`, `user_identifier_type`, `dedup_id`. Optional: `args`, `timestamp`. Duplicate `dedup_id` → HTTP 409. Rate limit 100/min.

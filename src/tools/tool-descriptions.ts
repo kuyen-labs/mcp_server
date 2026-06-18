@@ -2,6 +2,7 @@
  * MCP tool descriptions tuned for LLMs (parameters + short examples).
  */
 
+import { POOL_PAYOUT_TOOL_HINT } from '../incentives/pool-payout-guide.js';
 import { TIERED_AUDIENCE_BOOST_TOOL_HINT } from '../incentives/tiered-audience-boost-guide.js';
 
 export const PUBLISH_METADATA_AFTER_WRITE_NOTE =
@@ -48,7 +49,7 @@ export const LIST_PRICE_REFERENCES_DESCRIPTION =
 export const LIST_PAYOUT_SCHEMAS_DESCRIPTION =
   'Lists payout schema metadata from GET /public-api/v1/metadata/payout-schemas (cached), enriched for create_incentive. ' +
   'Includes enums, payout_term_dto.schemes (per PayoutScheme), plus reward_types[] with create_payload_example for: fixed-reward, variable-reward, proportional-pool, leaderboard. ' +
-  'Top-level create_incentive_payload_guide documents body shape and webapp encode.ts mappers. Call before create_incentive. Params: {}.';
+  'Top-level create_incentive_payload_guide documents body shape, tiered_audience_boost_playbook, and pool_payout_playbook (capability boundaries for proportional pool). Call before create_incentive or pool analysis. Params: {}.';
 
 export const LIST_PROJECTS_DESCRIPTION =
   'Lists dashboard projects for the current user: GET /api/v1/projects with optional ?page= (1-based) and ?query=. Example: {"page":1} or {"query":"acme"}.';
@@ -63,11 +64,14 @@ export const GET_PROJECT_DESCRIPTION =
 export const LIST_INCENTIVES_DESCRIPTION =
   'Lists draft incentives with published trigger IDs merged by ref. Calls GET /api/v1/projects/:projectId/incentives and GET .../customizations. ' +
   'Each item: slug, draft_conversion_id, published_conversion_id (null for now), draft, published (null), triggers[] (scoped merge). ' +
+  'When any incentive uses scheme pool, response includes _contains_pool_scheme and _pool_analysis_hint — call get_incentive for _pool_capability_boundary before proposing pool config changes. ' +
   'Example: {"project_id":"<uuid>"}.';
 
 export const GET_INCENTIVE_DESCRIPTION =
   'Gets one draft incentive with scoped triggers (same merge as list_incentives). conversion_id is the **draft** conversion UUID from incentives API. ' +
   'Use draft_trigger_id from triggers[] for PATCH update_trigger; published_trigger_id for live/prod comparisons (e.g. SQL on project.metadata_id). ' +
+  'When payout_terms include scheme pool, response includes _pool_capability_boundary (fixed pool_amount per cycle; no dynamic/volume-banded pools). ' +
+  'Full playbook: list_payout_schemas → pool_payout_playbook. ' +
   'Example: {"project_id":"<uuid>","conversion_id":"<uuid>"}.';
 
 export const GET_INCENTIVE_STATS_DESCRIPTION =
@@ -98,6 +102,8 @@ export const UPDATE_PAYOUT_TERM_DESCRIPTION =
   'Body is a single PayoutTermDto (use get_incentive, edit fields such as referral_amount / referrer_amount, send as payout_term). ' +
   'For variable rewards, the server expects referral_amount_percentage / referrer_amount_percentage; this tool maps GET aliases automatically (same as the dashboard). ' +
   TIERED_AUDIENCE_BOOST_TOOL_HINT +
+  ' ' +
+  POOL_PAYOUT_TOOL_HINT +
   ' ' +
   'Per-unit rewards: edit referral_amount and referrer_amount; do not send zero percentages. ' +
   'Point-type fixed/pool/rank amounts with decimals are rounded to the nearest integer before send (response includes _amount_rounding when applied); variable point rewards keep decimals. ' +
@@ -175,7 +181,9 @@ export const CREATE_INCENTIVE_DESCRIPTION =
   'Fixed: calculation_strategy fixed, referrer_amount/referral_amount. Variable: calculation_strategy variable, trigger_amount_source, base_currency, *_amount_percentage. ' +
   TIERED_AUDIENCE_BOOST_TOOL_HINT +
   ' ' +
-  'Pool: scheme pool, amount_source, pool_amount, pool_duration, pool_calculation_day_cron. Leaderboard: scheme rank, rank_scheme_config.ranks, pool window fields. ' +
+  POOL_PAYOUT_TOOL_HINT +
+  ' ' +
+  'Pool: scheme pool, amount_source, pool_amount (fixed per cycle), pool_duration, pool_calculation_day_cron, pool_distribution_mode. Leaderboard: scheme rank, rank_scheme_config.ranks, pool window fields. ' +
   'MCP normalizes variable terms and tiered group aliases; dry_run returns _validation_errors when amounts would fail server validation. dry_run then confirmed.' +
   DRAFT_ID_RESOLUTION_BEFORE_WRITE_NOTE +
   PUBLISH_METADATA_AFTER_WRITE_NOTE;
