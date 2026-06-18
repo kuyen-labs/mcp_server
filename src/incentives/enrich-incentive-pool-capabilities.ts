@@ -74,16 +74,16 @@ export function enrichIncentiveWithPoolCapabilities<T extends Record<string, unk
   };
 }
 
-export function enrichIncentivesListWithPoolFlags<T extends Record<string, unknown>>(
-  list: T[],
-): T & {
+export type IncentivesListWithPoolFlags<T extends Record<string, unknown>> = T[] & {
   _contains_pool_scheme?: boolean;
   _pool_analysis_hint?: string;
-} {
+};
+
+export function enrichIncentivesListWithPoolFlags<T extends Record<string, unknown>>(list: T[]): IncentivesListWithPoolFlags<T> {
   const containsPool = list.some((item) => incentiveHasPoolScheme(item));
 
   if (!containsPool) {
-    return list as T & { _contains_pool_scheme?: boolean; _pool_analysis_hint?: string };
+    return list as IncentivesListWithPoolFlags<T>;
   }
 
   return Object.assign([...list], {
@@ -91,5 +91,5 @@ export function enrichIncentivesListWithPoolFlags<T extends Record<string, unkno
     _pool_analysis_hint:
       'One or more incentives use scheme pool. Call get_incentive for details; response includes _pool_capability_boundary. ' +
       'Full rules: list_payout_schemas → pool_payout_playbook. Do not suggest dynamic/volume-banded pool sizing.',
-  });
+  }) as IncentivesListWithPoolFlags<T>;
 }
