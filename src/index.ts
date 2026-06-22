@@ -17,7 +17,7 @@ import { runCheckEventStatus, runSendBatchEvents, runSendEvent } from './events/
 import { ApiRequestError, FuulApiClient, NotLoggedInError } from './http/fuul-api-client.js';
 import { MissingProjectApiKeyError, resolveProjectApiKeyBearer } from './http/project-api-key-bearer.js';
 import { incentiveHistoryPath, incentiveStatsPath, projectIncentivesBreakdownPath } from './incentive-analytics/incentive-analytics-queries.js';
-import { enrichIncentivesListWithPoolFlags,enrichIncentiveWithPoolCapabilities } from './incentives/enrich-incentive-pool-capabilities.js';
+import { enrichIncentivesListWithPoolFlags, enrichIncentiveWithPoolCapabilities } from './incentives/enrich-incentive-pool-capabilities.js';
 import { enrichPayoutSchemasResponse } from './incentives/incentive-create-payload-guide.js';
 import { runCreateIncentive, runDeleteIncentive, runUpdateIncentiveTriggers } from './incentives/incentive-write-handlers.js';
 import { MetadataService } from './metadata/metadata-service.js';
@@ -36,6 +36,7 @@ import {
   runGetUserReferrer,
   runRemoveUserFromReferralCode,
   runSwapUserReferralCode,
+  runUpdateReferralCodeMaxUses,
   runUpdateUserReferrer,
   runUseReferralCode,
 } from './referral-attribution/referral-attribution-handlers.js';
@@ -82,6 +83,7 @@ import {
   UPDATE_PAYOUT_TERM_DESCRIPTION,
   UPDATE_PROJECT_AFFILIATE_PUBLIC_DESCRIPTION,
   UPDATE_PROJECT_TIER_DESCRIPTION,
+  UPDATE_REFERRAL_CODE_MAX_USES_DESCRIPTION,
   UPDATE_TRIGGER_DESCRIPTION,
   UPDATE_USER_REFERRER_DESCRIPTION,
   USE_REFERRAL_CODE_DESCRIPTION,
@@ -142,6 +144,8 @@ import {
   updateProjectAffiliatePublicInputSchema,
   updateProjectTierFieldsSchema,
   updateProjectTierInputSchema,
+  updateReferralCodeMaxUsesFieldsSchema,
+  updateReferralCodeMaxUsesInputSchema,
   updateTriggerFieldsSchema,
   updateTriggerInputSchema,
   updateUserReferrerFieldsSchema,
@@ -627,6 +631,22 @@ async function main(): Promise<void> {
       return toolErrorPayload(e, 'Failed to swap user referral code');
     }
   });
+
+  server.tool(
+    'update_referral_code_max_uses',
+    UPDATE_REFERRAL_CODE_MAX_USES_DESCRIPTION,
+    updateReferralCodeMaxUsesFieldsSchema.shape,
+    async (args) => {
+      try {
+        const parsed = updateReferralCodeMaxUsesInputSchema.parse(args);
+        const bearer = resolveProjectApiKeyBearer(env, parsed.project_api_key);
+        const data = await withTimeout(runUpdateReferralCodeMaxUses(api, bearer, parsed), toolTimeoutMs, 'update_referral_code_max_uses');
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      } catch (e) {
+        return toolErrorPayload(e, 'Failed to update referral code max uses');
+      }
+    },
+  );
 
   server.tool('list_payouts_pending_approval', LIST_PAYOUTS_PENDING_APPROVAL_DESCRIPTION, listPayoutsPendingApprovalSchema.shape, async (args) => {
     try {

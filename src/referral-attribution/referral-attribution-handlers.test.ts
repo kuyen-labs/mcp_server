@@ -6,13 +6,18 @@ import {
   buildDeleteReferralPath,
   buildDeleteUserReferrerPath,
   buildGetUserReferrerPath,
+  buildListReferralCodesPath,
+  buildUpdateReferralCodeMaxUsesPath,
   buildUpdateUserReferrerBody,
   buildUseReferralCodePath,
   isAlreadyRemovedMessage,
+  ReferralCodeResolutionError,
+  resolveReferralCodeForAffiliate,
   runDeleteUserReferrer,
   runGetUserReferrer,
   runRemoveUserFromReferralCode,
   runSwapUserReferralCode,
+  runUpdateReferralCodeMaxUses,
   runUpdateUserReferrer,
   runUseReferralCode,
 } from './referral-attribution-handlers.js';
@@ -291,5 +296,121 @@ describe('runSwapUserReferralCode', () => {
       remove: { status: 'deleted' },
       use_error: { message: 'User already has a referrer', status: 422 },
     });
+  });
+});
+
+describe('buildUpdateReferralCodeMaxUsesPath', () => {
+  it('encodes code in path', () => {
+    expect(buildUpdateReferralCodeMaxUsesPath('CODE+1')).toBe('/api/v1/referral_codes/CODE%2B1');
+  });
+});
+
+describe('buildListReferralCodesPath', () => {
+  it('builds query string for owner list', () => {
+    const path = buildListReferralCodesPath({
+      user_identifier: '0xk',
+      user_identifier_type: 'evm_address',
+      page_size: 25,
+    });
+    expect(path).toContain('/api/v1/referral_codes?');
+    expect(path).toContain('user_identifier=0xk');
+    expect(path).toContain('page_size=25');
+  });
+});
+
+describe('resolveReferralCodeForAffiliate', () => {
+  it('returns the only code when affiliate has one', async () => {
+    const getJson = vi.fn().mockResolvedValue({ results: [{ code: 'KOLCODE' }] });
+    const code = await resolveReferralCodeForAffiliate({ getJson } as never, 'key', '0xk', 'evm_address');
+    expect(code).toBe('KOLCODE');
+  });
+
+  it('throws when affiliate has no codes', async () => {
+    const getJson = vi.fn().mockResolvedValue({ results: [] });
+    await expect(resolveReferralCodeForAffiliate({ getJson } as never, 'key', '0xk', 'evm_address')).rejects.toBeInstanceOf(
+      ReferralCodeResolutionError,
+    );
+  });
+
+  it('throws when affiliate has multiple codes', async () => {
+    const getJson = vi.fn().mockResolvedValue({ results: [{ code: 'A' }, { code: 'B' }] });
+    await expect(resolveReferralCodeForAffiliate({ getJson } as never, 'key', '0xk', 'evm_address')).rejects.toThrow(/multiple referral codes/);
+  });
+});
+
+describe('runUpdateReferralCodeMaxUses', () => {
+  const affiliateTarget = {
+    affiliate_user_identifier: '0xk',
+    affiliate_user_identifier_type: 'evm_address' as const,
+    max_uses: 50,
+  };
+
+  it('dry_run does not call patchJson', async () => {
+    const getJson = vi.fn().mockResolvedValue({ results: [{ code: 'KOLCODE' }] });
+    const patchJson = vi.fn();
+    const result = await runUpdateReferralCodeMaxUses({ getJson, patchJson } as never, 'key', {
+      ...affiliateTarget,
+      dry_run: true,
+    });
+    expect(patchJson).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      dry_run: true,
+      would_patch: '/api/v1/referral_codes/KOLCODE',
+      body: { max_uses: 50 },
+      referral_code: 'KOLCODE',
+    });
+  });
+
+  it('throws without dry_run or confirmed', async () => {
+    await expect(
+      runUpdateReferralCodeMaxUses({ getJson: vi.fn(), patchJson: vi.fn() } as never, 'key', {
+        referral_code: 'PROMO',
+        max_uses: 10,
+      }),
+    ).rejects.toBeInstanceOf(WriteNotConfirmedError);
+  });
+
+  it('confirmed patches by explicit referral_code', async () => {
+    const patchJson = vi.fn().mockResolvedValue(undefined);
+    const result = await runUpdateReferralCodeMaxUses({ patchJson } as never, 'key', {
+      referral_code: 'PROMO',
+      max_uses: 100,
+      confirmed: true,
+    });
+    expect(patchJson).toHaveBeenCalledWith('/api/v1/referral_codes/PROMO', { max_uses: 100 }, { bearerToken: 'key' });
+    expect(result).toEqual({ status: 'updated', code: 'PROMO', max_uses: 100 });
+  });
+
+  it('confirmed resolves affiliate and returns refreshed state', async () => {
+    const getJson = vi
+      .fn()
+      .mockResolvedValueOnce({ results: [{ code: 'KOLCODE' }] })
+      .mockResolvedValueOnce({
+        results: [{ code: 'KOLCODE', max_uses: 50, uses: 3, remaining_uses: 47 }],
+      });
+    const patchJson = vi.fn().mockResolvedValue(undefined);
+    const result = await runUpdateReferralCodeMaxUses({ getJson, patchJson } as never, 'key', {
+      ...affiliateTarget,
+      confirmed: true,
+    });
+    expect(patchJson).toHaveBeenCalledWith('/api/v1/referral_codes/KOLCODE', { max_uses: 50 }, { bearerToken: 'key' });
+    expect(result).toEqual({
+      status: 'updated',
+      code: 'KOLCODE',
+      max_uses: 50,
+      uses: 3,
+      remaining_uses: 47,
+    });
+  });
+
+  it('propagates API 422 when max_uses is below current uses', async () => {
+    const patchJson = vi.fn().mockRejectedValue(new ApiRequestError('max_uses must be at least 10', 422));
+    await expect(
+      runUpdateReferralCodeMaxUses({ patchJson } as never, 'key', {
+        referral_code: 'PROMO',
+        max_uses: 5,
+        confirmed: true,
+      }),
+    ).rejects.toBeInstanceOf(ApiRequestError);
   });
 });

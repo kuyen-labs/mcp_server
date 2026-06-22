@@ -6,9 +6,28 @@ import type {
   GetUserReferrerInput,
   RemoveUserFromReferralCodeInput,
   SwapUserReferralCodeInput,
+  UpdateReferralCodeMaxUsesInput,
   UpdateUserReferrerInput,
   UseReferralCodeInput,
 } from '../tools/tool-schemas.js';
+
+interface ReferralCodeListItem {
+  code: string;
+  max_uses: number | null;
+  uses: number;
+  remaining_uses: number | null;
+}
+
+interface ListReferralCodesResponse {
+  results: ReferralCodeListItem[];
+}
+
+export class ReferralCodeResolutionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ReferralCodeResolutionError';
+  }
+}
 
 const ALREADY_REMOVED_MESSAGES = new Set(['User has not used this referral code', 'User referrer relationship not found']);
 
@@ -68,6 +87,57 @@ export function buildGetUserReferrerPath(query: { user_identifier: string; user_
 export function buildDeleteUserReferrerPath(query: { user_identifier: string; user_identifier_type: string; force?: boolean }): string {
   const qs = buildNestQueryString(query);
   return qs ? `/api/v1/user-referrers?${qs}` : '/api/v1/user-referrers';
+}
+
+export function buildUpdateReferralCodeMaxUsesPath(code: string): string {
+  return `/api/v1/referral_codes/${encodeURIComponent(code)}`;
+}
+
+export function buildListReferralCodesPath(query: { user_identifier: string; user_identifier_type: string; page_size?: number }): string {
+  const qs = buildNestQueryString(query);
+  return qs ? `/api/v1/referral_codes?${qs}` : '/api/v1/referral_codes';
+}
+
+export async function resolveReferralCodeForAffiliate(
+  api: FuulApiClient,
+  bearer: string,
+  affiliateUserIdentifier: string,
+  affiliateUserIdentifierType: string,
+): Promise<string> {
+  const path = buildListReferralCodesPath({
+    user_identifier: affiliateUserIdentifier,
+    user_identifier_type: affiliateUserIdentifierType,
+    page_size: 25,
+  });
+  const data = (await api.getJson(path, { bearerToken: bearer })) as ListReferralCodesResponse;
+  const results = data.results ?? [];
+
+  if (results.length === 0) {
+    throw new ReferralCodeResolutionError('No referral codes found for affiliate; create or configure a code before setting max_uses');
+  }
+
+  if (results.length > 1) {
+    const codes = results.map((r) => r.code).join(', ');
+    throw new ReferralCodeResolutionError(`Affiliate has multiple referral codes (${codes}); pass referral_code explicitly`);
+  }
+
+  return results[0].code;
+}
+
+async function fetchReferralCodeState(
+  api: FuulApiClient,
+  bearer: string,
+  affiliateUserIdentifier: string,
+  affiliateUserIdentifierType: string,
+  code: string,
+): Promise<ReferralCodeListItem | null> {
+  const path = buildListReferralCodesPath({
+    user_identifier: affiliateUserIdentifier,
+    user_identifier_type: affiliateUserIdentifierType,
+    page_size: 25,
+  });
+  const data = (await api.getJson(path, { bearerToken: bearer })) as ListReferralCodesResponse;
+  return data.results?.find((item) => item.code === code) ?? null;
 }
 
 function normalizePatchUseResult(data: unknown): { status: 'used' } {
@@ -203,4 +273,38 @@ export async function runSwapUserReferralCode(api: FuulApiClient, bearer: string
       use_error: useError,
     };
   }
+}
+
+export async function runUpdateReferralCodeMaxUses(api: FuulApiClient, bearer: string, input: UpdateReferralCodeMaxUsesInput): Promise<unknown> {
+  assertWriteConfirmedOrDryRun(input);
+
+  const hasAffiliateTarget =
+    input.affiliate_user_identifier != null && input.affiliate_user_identifier !== '' && input.affiliate_user_identifier_type != null;
+
+  let code = input.referral_code;
+  if (!code && hasAffiliateTarget) {
+    code = await resolveReferralCodeForAffiliate(api, bearer, input.affiliate_user_identifier!, input.affiliate_user_identifier_type!);
+  }
+
+  if (!code) {
+    throw new ReferralCodeResolutionError('referral_code could not be resolved');
+  }
+
+  const path = buildUpdateReferralCodeMaxUsesPath(code);
+  const body = { max_uses: input.max_uses };
+
+  if (input.dry_run === true) {
+    return { dry_run: true, would_patch: path, body, referral_code: code };
+  }
+
+  await api.patchJson(path, body, { bearerToken: bearer });
+
+  if (hasAffiliateTarget) {
+    const updated = await fetchReferralCodeState(api, bearer, input.affiliate_user_identifier!, input.affiliate_user_identifier_type!, code);
+    if (updated) {
+      return { status: 'updated', ...updated };
+    }
+  }
+
+  return { status: 'updated', code, max_uses: input.max_uses };
 }
