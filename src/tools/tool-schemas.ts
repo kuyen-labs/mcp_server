@@ -707,3 +707,58 @@ export const swapUserReferralCodeInputSchema = swapUserReferralCodeFieldsSchema.
 });
 
 export type SwapUserReferralCodeInput = z.infer<typeof swapUserReferralCodeInputSchema>;
+
+export const updateReferralCodeMaxUsesFieldsSchema = projectApiKeyBearerFieldsSchema.merge(writeConfirmationFieldsSchema).extend({
+  max_uses: z
+    .union([z.number().int().min(0), z.null()])
+    .describe('Absolute max_uses cap (0 disables redemptions; null = unlimited). Must be >= current uses.'),
+  referral_code: z.string().min(1).optional().describe('Referral code to update. Omit when using affiliate_user_identifier.'),
+  affiliate_user_identifier: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Affiliate owner identifier; resolves their referral code via GET /referral_codes.'),
+  affiliate_user_identifier_type: identifierTypeForReferrerSchema.optional(),
+});
+
+export const updateReferralCodeMaxUsesInputSchema = updateReferralCodeMaxUsesFieldsSchema.superRefine((val, ctx) => {
+  const hasCode = val.referral_code != null && val.referral_code !== '';
+  const hasAffiliateId = val.affiliate_user_identifier != null && val.affiliate_user_identifier !== '';
+  const hasAffiliateType = val.affiliate_user_identifier_type != null;
+
+  if (hasCode && hasAffiliateId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide either referral_code or affiliate_user_identifier, not both',
+      path: ['referral_code'],
+    });
+    return;
+  }
+
+  if (!hasCode && !hasAffiliateId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide referral_code or affiliate_user_identifier + affiliate_user_identifier_type',
+      path: ['referral_code'],
+    });
+    return;
+  }
+
+  if (hasAffiliateId && !hasAffiliateType) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'affiliate_user_identifier_type is required when affiliate_user_identifier is set',
+      path: ['affiliate_user_identifier_type'],
+    });
+  }
+
+  if (!hasAffiliateId && hasAffiliateType) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'affiliate_user_identifier is required when affiliate_user_identifier_type is set',
+      path: ['affiliate_user_identifier'],
+    });
+  }
+});
+
+export type UpdateReferralCodeMaxUsesInput = z.infer<typeof updateReferralCodeMaxUsesInputSchema>;
