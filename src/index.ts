@@ -19,18 +19,16 @@ import { MissingProjectApiKeyError, resolveProjectApiKeyBearer } from './http/pr
 import { incentiveHistoryPath, incentiveStatsPath, projectIncentivesBreakdownPath } from './incentive-analytics/incentive-analytics-queries.js';
 import { enrichIncentivesListWithPoolFlags, enrichIncentiveWithPoolCapabilities } from './incentives/enrich-incentive-pool-capabilities.js';
 import { enrichPayoutSchemasResponse } from './incentives/incentive-create-payload-guide.js';
-import { runCreateIncentive, runDeleteIncentive, runUpdateIncentiveTriggers } from './incentives/incentive-write-handlers.js';
+import { runCreateIncentive, runDeleteIncentive, runUpdateIncentiveTriggers, runUpdatePayoutTerm } from './incentives/incentive-write-handlers.js';
 import { MetadataService } from './metadata/metadata-service.js';
 import {
   loadIncentivesListWithMetadataScope,
   loadIncentiveWithMetadataScope,
   loadProjectWithMetadataScope,
 } from './metadata-scope/fetch-project-config.js';
-import { attachDraftIdResolution, resolveDraftConversionIdForWrite, resolveDraftTriggerIdForWrite } from './metadata-scope/resolve-draft-ids.js';
-import { attachAmountRounding, preparePayoutTermBodyForWrite } from './payouts/normalize-payout-term-body.js';
+import { attachDraftIdResolution,resolveDraftTriggerIdForWrite } from './metadata-scope/resolve-draft-ids.js';
 import { runPayoutBatchAction } from './payouts/payout-batch-handlers.js';
-import { attachValidationErrors } from './payouts/payout-term-amounts-validation.js';
-import { attachPayoutTermWarnings, payoutTermHasTierType } from './payouts/payout-term-warnings.js';
+import { payoutTermHasTierType } from './payouts/payout-term-warnings.js';
 import {
   runDeleteUserReferrer,
   runGetUserReferrer,
@@ -707,55 +705,9 @@ async function main(): Promise<void> {
   server.tool('update_payout_term', UPDATE_PAYOUT_TERM_DESCRIPTION, updatePayoutTermInputSchema.shape, async (args) => {
     try {
       const parsed = updatePayoutTermInputSchema.parse(args);
-      assertWriteConfirmedOrDryRun(parsed);
-      const conversionResolution = await resolveDraftConversionIdForWrite(api, parsed.project_id, parsed.conversion_id, writeTimeoutMs);
-      const path = `/api/v1/projects/${parsed.project_id}/conversions/${conversionResolution.resolved_draft_conversion_id}/payout_terms/${parsed.payout_term_id}`;
-      const {
-        body: patchBody,
-        amountRounding,
-        validationErrors,
-        warnings,
-      } = preparePayoutTermBodyForWrite(parsed.payout_term as Record<string, unknown>);
-      const tiered = payoutTermHasTierType(patchBody);
-      if (parsed.dry_run === true) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(
-                attachDraftIdResolution(
-                  attachPayoutTermWarnings(
-                    attachValidationErrors(
-                      attachAmountRounding({ dry_run: true, would_patch: path, body: patchBody }, amountRounding),
-                      validationErrors,
-                    ),
-                    warnings,
-                  ),
-                  conversionResolution,
-                ),
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-      const data = await withTimeout(api.patchJson(path, patchBody), writeTimeoutMs, 'update_payout_term');
-      const responsePayload =
-        data !== null && typeof data === 'object' && !Array.isArray(data)
-          ? attachPayoutTermWarnings(
-              attachValidationErrors(attachAmountRounding(data as Record<string, unknown>, amountRounding), validationErrors),
-              warnings,
-            )
-          : attachPayoutTermWarnings(attachValidationErrors(attachAmountRounding({ result: data }, amountRounding), validationErrors), warnings);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: stringifyPayoutWritePayload(attachDraftIdResolution(responsePayload, conversionResolution), parsed.dry_run, tiered),
-          },
-        ],
-      };
+      const tiered = payoutTermHasTierType(parsed.payout_term as Record<string, unknown>);
+      const data = await withTimeout(runUpdatePayoutTerm(api, parsed, writeTimeoutMs), writeTimeoutMs, 'update_payout_term');
+      return { content: [{ type: 'text', text: stringifyPayoutWritePayload(data, parsed.dry_run, tiered) }] };
     } catch (e) {
       return toolErrorPayload(e, 'Failed to update payout term');
     }

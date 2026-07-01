@@ -11,6 +11,7 @@ const toolTimeoutMs = 30_000;
 
 const resolveDraftTriggerIdsForWrite = vi.fn();
 const resolveDraftConversionIdForWrite = vi.fn();
+const ensureProjectChainForOnChainPayouts = vi.fn();
 
 vi.mock('../metadata-scope/resolve-draft-ids.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../metadata-scope/resolve-draft-ids.js')>();
@@ -21,9 +22,19 @@ vi.mock('../metadata-scope/resolve-draft-ids.js', async (importOriginal) => {
   };
 });
 
+vi.mock('../projects/ensure-project-chain-for-on-chain-payouts.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../projects/ensure-project-chain-for-on-chain-payouts.js')>();
+  return {
+    ...actual,
+    ensureProjectChainForOnChainPayouts: (...args: unknown[]) => ensureProjectChainForOnChainPayouts(...args),
+  };
+});
+
 describe('runCreateIncentive', () => {
   beforeEach(() => {
     resolveDraftTriggerIdsForWrite.mockReset();
+    ensureProjectChainForOnChainPayouts.mockReset();
+    ensureProjectChainForOnChainPayouts.mockResolvedValue({ action: 'skipped', reason: 'no_onchain_payout_terms' });
     resolveDraftTriggerIdsForWrite.mockResolvedValue([
       {
         requested_trigger_id: triggerId,
@@ -114,6 +125,91 @@ describe('runCreateIncentive', () => {
       trigger_ids: [resolvedTriggerId],
       payout_terms: [{ scheme: 'fixed', type: 'token', payee_type: 'referral' }],
     });
+  });
+
+  it('dry_run on-chain incentive includes _project_chain_init preview', async () => {
+    const postJson = vi.fn();
+    ensureProjectChainForOnChainPayouts.mockResolvedValue({
+      action: 'initialized',
+      chain_id: '8453',
+      dry_run: true,
+      would_patch_initialize: {
+        path: `/api/v1/projects/${projectId}/initialize`,
+        body: { chainId: '8453' },
+      },
+    });
+
+    const result = await runCreateIncentive(
+      { postJson, getJson: vi.fn() } as never,
+      {
+        project_id: projectId,
+        name: 'On-chain reward',
+        trigger_ids: [triggerId],
+        payout_terms: [
+          {
+            calculation_strategy: 'fixed',
+            type: 'onchain-currency',
+            payee_type: 'both',
+            payout_currency_chain_id: 8453,
+            payout_currency_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+            referral_amount: '1000000',
+            referrer_amount: '1000000',
+          },
+        ],
+        dry_run: true,
+      },
+      toolTimeoutMs,
+    );
+
+    expect(postJson).not.toHaveBeenCalled();
+    expect(ensureProjectChainForOnChainPayouts).toHaveBeenCalledWith(
+      expect.anything(),
+      projectId,
+      expect.arrayContaining([expect.objectContaining({ type: 'onchain-currency' })]),
+      true,
+    );
+    expect(result).toMatchObject({
+      _project_chain_init: {
+        action: 'initialized',
+        chain_id: '8453',
+      },
+    });
+  });
+
+  it('confirmed on-chain incentive initializes project chain before POST', async () => {
+    const postJson = vi.fn().mockResolvedValue({ id: 'conv-1' });
+    const patchJson = vi.fn();
+    ensureProjectChainForOnChainPayouts.mockResolvedValue({ action: 'initialized', chain_id: '8453' });
+
+    await runCreateIncentive(
+      { postJson, patchJson, getJson: vi.fn() } as never,
+      {
+        project_id: projectId,
+        name: 'On-chain reward',
+        trigger_ids: [triggerId],
+        payout_terms: [
+          {
+            calculation_strategy: 'fixed',
+            type: 'onchain-currency',
+            payee_type: 'both',
+            payout_currency_chain_id: 8453,
+            payout_currency_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+            referral_amount: '1000000',
+            referrer_amount: '1000000',
+          },
+        ],
+        confirmed: true,
+      },
+      toolTimeoutMs,
+    );
+
+    expect(ensureProjectChainForOnChainPayouts).toHaveBeenCalledWith(
+      expect.anything(),
+      projectId,
+      expect.arrayContaining([expect.objectContaining({ type: 'onchain-currency' })]),
+      false,
+    );
+    expect(postJson).toHaveBeenCalled();
   });
 });
 
