@@ -4,7 +4,8 @@ import { attachDraftIdResolution, resolveDraftConversionIdForWrite, resolveDraft
 import { type AmountRoundingNotice, attachAmountRounding, preparePayoutTermBodyForWrite } from '../payouts/normalize-payout-term-body.js';
 import { attachValidationErrors, type PayoutTermValidationError } from '../payouts/payout-term-amounts-validation.js';
 import { attachPayoutTermWarnings, type PayoutTermWarning } from '../payouts/payout-term-warnings.js';
-import type { CreateIncentiveInput, DeleteIncentiveInput, UpdateIncentiveTriggersInput } from '../tools/tool-schemas.js';
+import { attachProjectChainInit, ensureProjectChainForOnChainPayouts } from '../projects/ensure-project-chain-for-on-chain-payouts.js';
+import type { CreateIncentiveInput, DeleteIncentiveInput, UpdateIncentiveTriggersInput, UpdatePayoutTermInput } from '../tools/tool-schemas.js';
 
 function prefixField(prefix: string, field: string): string {
   return field.startsWith(prefix) ? field : `${prefix}.${field}`;
@@ -95,18 +96,27 @@ export async function runCreateIncentive(api: FuulApiClient, input: CreateIncent
   const resolvedTriggerIds = triggerResolutions.map((row) => row.resolved_draft_trigger_id);
   const path = `/api/v1/projects/${input.project_id}/incentives`;
   const { body, amountRounding, validationErrors, warnings } = buildCreateIncentiveBody(input, resolvedTriggerIds);
+  const chainInit = await ensureProjectChainForOnChainPayouts(
+    api,
+    input.project_id,
+    body.payout_terms as Record<string, unknown>[],
+    input.dry_run === true,
+  );
 
   if (input.dry_run === true) {
     return attachDraftIdResolution(
-      attachWritePreviewMetadata(
-        {
-          dry_run: true,
-          would_post: path,
-          body,
-        },
-        amountRounding,
-        validationErrors,
-        warnings,
+      attachProjectChainInit(
+        attachWritePreviewMetadata(
+          {
+            dry_run: true,
+            would_post: path,
+            body,
+          },
+          amountRounding,
+          validationErrors,
+          warnings,
+        ),
+        chainInit,
       ),
       { triggers: triggerResolutions },
     );
@@ -115,8 +125,8 @@ export async function runCreateIncentive(api: FuulApiClient, input: CreateIncent
   const result = await api.postJson(path, body);
   const responsePayload =
     result !== null && typeof result === 'object' && !Array.isArray(result)
-      ? attachWritePreviewMetadata(result as Record<string, unknown>, amountRounding, validationErrors, warnings)
-      : attachWritePreviewMetadata({ result }, amountRounding, validationErrors, warnings);
+      ? attachProjectChainInit(attachWritePreviewMetadata(result as Record<string, unknown>, amountRounding, validationErrors, warnings), chainInit)
+      : attachProjectChainInit(attachWritePreviewMetadata({ result }, amountRounding, validationErrors, warnings), chainInit);
   return attachDraftIdResolution(responsePayload, { triggers: triggerResolutions });
 }
 
@@ -181,4 +191,41 @@ export async function runUpdateIncentiveTriggers(api: FuulApiClient, input: Upda
   const result = await api.patchJson(path, body);
   const responsePayload = result !== null && typeof result === 'object' && !Array.isArray(result) ? (result as Record<string, unknown>) : { result };
   return attachDraftIdResolution(responsePayload, { conversion: conversionResolution, triggers: triggerResolutions });
+}
+
+export async function runUpdatePayoutTerm(api: FuulApiClient, input: UpdatePayoutTermInput, toolTimeoutMs: number): Promise<unknown> {
+  assertWriteConfirmedOrDryRun(input);
+  const conversionResolution = await resolveDraftConversionIdForWrite(api, input.project_id, input.conversion_id, toolTimeoutMs);
+  const path = `/api/v1/projects/${input.project_id}/conversions/${conversionResolution.resolved_draft_conversion_id}/payout_terms/${input.payout_term_id}`;
+  const { body: patchBody, amountRounding, validationErrors, warnings } = preparePayoutTermBodyForWrite(input.payout_term as Record<string, unknown>);
+  const chainInit = await ensureProjectChainForOnChainPayouts(api, input.project_id, [patchBody], input.dry_run === true);
+
+  if (input.dry_run === true) {
+    return attachDraftIdResolution(
+      attachProjectChainInit(
+        attachPayoutTermWarnings(
+          attachValidationErrors(attachAmountRounding({ dry_run: true, would_patch: path, body: patchBody }, amountRounding), validationErrors),
+          warnings,
+        ),
+        chainInit,
+      ),
+      conversionResolution,
+    );
+  }
+
+  const result = await api.patchJson(path, patchBody);
+  const responsePayload =
+    result !== null && typeof result === 'object' && !Array.isArray(result)
+      ? attachProjectChainInit(
+          attachPayoutTermWarnings(
+            attachValidationErrors(attachAmountRounding(result as Record<string, unknown>, amountRounding), validationErrors),
+            warnings,
+          ),
+          chainInit,
+        )
+      : attachProjectChainInit(
+          attachPayoutTermWarnings(attachValidationErrors(attachAmountRounding({ result }, amountRounding), validationErrors), warnings),
+          chainInit,
+        );
+  return attachDraftIdResolution(responsePayload, conversionResolution);
 }

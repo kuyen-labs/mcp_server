@@ -106,6 +106,7 @@ export const UPDATE_PAYOUT_TERM_DESCRIPTION =
   POOL_PAYOUT_TOOL_HINT +
   ' ' +
   'Per-unit rewards: edit referral_amount and referrer_amount; do not send zero percentages. ' +
+  'When payout_term.type is onchain-currency, MCP also PATCHes /projects/:projectId/initialize with payout_currency_chain_id if contract_chain_id is unset (dashboard Token setup). ' +
   'Point-type fixed/pool/rank amounts with decimals are rounded to the nearest integer before send (response includes _amount_rounding when applied); variable point rewards keep decimals. ' +
   'Example dry_run: {"project_id":"<uuid>","conversion_id":"<uuid>","payout_term_id":"<uuid>","payout_term":{...},"dry_run":true}.' +
   DRAFT_ID_RESOLUTION_BEFORE_WRITE_NOTE +
@@ -184,6 +185,7 @@ export const CREATE_INCENTIVE_DESCRIPTION =
   POOL_PAYOUT_TOOL_HINT +
   ' ' +
   'Pool: scheme pool, amount_source, pool_amount (fixed per cycle), pool_duration, pool_calculation_day_cron, pool_distribution_mode. Leaderboard: scheme rank, rank_scheme_config.ranks, pool window fields. ' +
+  'When payout_terms include type onchain-currency, MCP also PATCHes /projects/:projectId/initialize with payout_currency_chain_id if contract_chain_id is unset (same as dashboard Token setup) so the contract-deploy banner appears on Incentives. ' +
   'MCP normalizes variable terms and tiered group aliases; dry_run returns _validation_errors when amounts would fail server validation. dry_run then confirmed.' +
   DRAFT_ID_RESOLUTION_BEFORE_WRITE_NOTE +
   PUBLISH_METADATA_AFTER_WRITE_NOTE;
