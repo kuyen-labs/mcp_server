@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { enrichTriggerTypesResponse, getCreatePayloadLayout } from './trigger-create-payload-guide.js';
+import { createTriggerInputSchema, updateTriggerInputSchema } from '../tools/tool-schemas.js';
+import { CREATE_PAYLOAD_EXAMPLES, enrichTriggerTypesResponse, getCreatePayloadLayout } from './trigger-create-payload-guide.js';
 
 describe('getCreatePayloadLayout', () => {
   it('marks custom as flat_dto', () => {
@@ -44,5 +45,65 @@ describe('enrichTriggerTypesResponse', () => {
 
   it('returns raw when trigger_types missing', () => {
     expect(enrichTriggerTypesResponse({ foo: 1 })).toEqual({ foo: 1 });
+  });
+});
+
+describe('CREATE_PAYLOAD_EXAMPLES custom volume expression', () => {
+  it('advertises amount_expression and never volume_expression', () => {
+    const custom = CREATE_PAYLOAD_EXAMPLES.custom as Record<string, unknown>;
+
+    expect(custom.amount_expression).toBe('extractedValueAmount');
+    expect(custom).not.toHaveProperty('volume_expression');
+  });
+
+  it('keeps every create example free of volume_expression at root and in context', () => {
+    for (const [id, example] of Object.entries(CREATE_PAYLOAD_EXAMPLES)) {
+      const root = example as Record<string, unknown>;
+      expect(root, id).not.toHaveProperty('volume_expression');
+      if (root.context && typeof root.context === 'object') {
+        expect(root.context as Record<string, unknown>, id).not.toHaveProperty('volume_expression');
+      }
+    }
+  });
+});
+
+describe('create_trigger volume_expression guard', () => {
+  const base = { project_id: '11111111-1111-4111-8111-111111111111', dry_run: true };
+
+  it('rejects trigger.volume_expression and points at amount_expression', () => {
+    const result = createTriggerInputSchema.safeParse({
+      ...base,
+      trigger: { name: 'n', description: 'd', type: 'custom', volume_expression: 'ytSyAtomic' },
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      return;
+    }
+    const issue = result.error.issues.find((i) => i.path.join('.') === 'trigger.volume_expression');
+    expect(issue?.message).toContain('use amount_expression instead');
+    expect(issue?.message).toContain('trigger.volume_expression column');
+  });
+
+  it('accepts trigger.amount_expression', () => {
+    const result = createTriggerInputSchema.safeParse({
+      ...base,
+      trigger: { name: 'n', description: 'd', type: 'custom', amount_expression: 'ytSyAtomic' },
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('update_trigger volume_expression', () => {
+  const base = { project_id: '11111111-1111-4111-8111-111111111111', trigger_id: '22222222-2222-4222-8222-222222222222', dry_run: true };
+
+  /** PATCH is not affected by the create-side bug: UpdateTriggerDto declares volume_expression. */
+  it('still accepts volume_expression on PATCH', () => {
+    expect(updateTriggerInputSchema.safeParse({ ...base, volume_expression: 'ytSyAtomic' }).success).toBe(true);
+  });
+
+  it('still accepts amount_expression on PATCH', () => {
+    expect(updateTriggerInputSchema.safeParse({ ...base, amount_expression: 'ytSyAtomic' }).success).toBe(true);
   });
 });
