@@ -24,7 +24,9 @@ export const CREATE_TRIGGER_GLOBAL_GUIDE = {
       rule:
         'Put every field from context_json_schema on the trigger object ROOT (siblings of name, description, type). ' +
         'Do NOT nest signature, event_type, or expressions only inside trigger.context — the API validates them at the root. ' +
-        'The server persists them as trigger context internally.',
+        'The server persists them as trigger context internally. ' +
+        'The volume expression field is named amount_expression on create — it is what populates the trigger.volume_expression column. ' +
+        'volume_expression is NOT part of the create schema: the API strips it and falls back to the default extractedValueAmount, returning 201 as if it had been accepted.',
     },
     context_only: {
       applies_to: [...CONTEXT_ONLY_TRIGGER_TYPES],
@@ -78,7 +80,7 @@ export const CREATE_PAYLOAD_EXAMPLES: Partial<Record<string, Record<string, unkn
     event_type: 'off-chain-event',
     end_user_identifier_property: 'address',
     payable: true,
-    volume_expression: 'extractedValueAmount',
+    amount_expression: 'extractedValueAmount',
     revenue_expression: 'extractedRevenueAmount',
     currency_expression: 'extractedVolumeCurrencyAddress',
     volume_currency_expression: 'extractedVolumeCurrencyAddress',

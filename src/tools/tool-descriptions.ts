@@ -154,7 +154,8 @@ export const CREATE_TRIGGER_DESCRIPTION =
   'Using an unlisted token address causes HTTP 201 but broken volume at runtime. ' +
   'Token-holder example (known asset): {"name":"Hold DAI","description":"...","type":"token-holder","context":{"token_address":"0x6b175474e89094c44da98b954eedeac495271d0f","chain_id":1,"volume_currency_expression":"0x6b175474e89094c44da98b954eedeac495271d0f"}}. ' +
   'Token-holder example (unknown 18d stablecoin): token 0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD → volume_currency_expression 0x6b175474e89094c44da98b954eedeac495271d0f (DAI). ' +
-  'Custom off-chain: {"name":"...","description":"...","type":"custom","signature":"event_name","event_type":"off-chain-event","end_user_identifier_property":"address","payable":true,...expressions at root}.' +
+  'Custom off-chain: {"name":"...","description":"...","type":"custom","signature":"event_name","event_type":"off-chain-event","end_user_identifier_property":"address","payable":true,...expressions at root}. ' +
+  'Volume expression on create is amount_expression (NOT volume_expression, which the create API strips while still returning 201); amount_expression is what populates the trigger.volume_expression column.' +
   PUBLISH_METADATA_AFTER_WRITE_NOTE;
 
 const REPLACE_TRIGGER_TOKEN_FLOW =

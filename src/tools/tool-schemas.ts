@@ -154,8 +154,11 @@ export const updateTriggerFieldsSchema = writeConfirmationFieldsSchema.extend({
   description: z.string().optional(),
   event_type: z.string().optional(),
   condition_expression: z.string().optional(),
-  amount_expression: z.string().optional(),
-  volume_expression: z.string().optional(),
+  amount_expression: z.string().optional().describe('Volume expression. Populates the trigger.volume_expression column. This is the field to use on create_trigger.'),
+  volume_expression: z
+    .string()
+    .optional()
+    .describe('Accepted on PATCH only, where it takes precedence over amount_expression. NOT accepted by create_trigger — use amount_expression there.'),
   revenue_expression: z.string().optional(),
   currency_expression: z.string().optional(),
   volume_currency_expression: z.string().optional(),
@@ -214,6 +217,17 @@ export const createTriggerInputSchema = createTriggerFieldsSchema.superRefine((v
       code: z.ZodIssueCode.custom,
       message: 'trigger.description is required (non-empty string)',
       path: ['trigger', 'description'],
+    });
+  }
+  // fuul-server CreateTriggerDto has no volume_expression; PATCH's UpdateTriggerDto does (FUU-2003).
+  if (v.trigger.volume_expression !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        'trigger.volume_expression is not accepted on create — use amount_expression instead. ' +
+        'amount_expression is the field that populates the trigger.volume_expression column. ' +
+        'Sending volume_expression is silently dropped by the API: the create returns 201 but the trigger keeps the default extractedValueAmount.',
+      path: ['trigger', 'volume_expression'],
     });
   }
 });
