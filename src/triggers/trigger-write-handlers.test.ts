@@ -53,7 +53,10 @@ describe('runCreateTrigger', () => {
 
   it('dry_run does not post', async () => {
     const postJson = vi.fn();
-    const result = await runCreateTrigger({ postJson } as never, {
+    const getJson = vi.fn().mockResolvedValue({
+      trigger_types: [{ id: 'token-holder', schema_status: 'missing', context_json_schema: null }],
+    });
+    const result = await runCreateTrigger({ postJson, getJson } as never, {
       project_id: projectId,
       trigger: tokenHolderBody,
       dry_run: true,
@@ -64,6 +67,36 @@ describe('runCreateTrigger', () => {
       would_post: `/api/v1/projects/${projectId}/triggers`,
       body: tokenHolderBody,
     });
+  });
+
+  it('dry_run rejects when a required context field is missing', async () => {
+    const postJson = vi.fn();
+    const getJson = vi.fn().mockResolvedValue({
+      trigger_types: [
+        {
+          id: 'kamino-lend',
+          schema_status: 'present',
+          context_json_schema: {
+            type: 'object',
+            properties: { market: {}, reserve: {}, volumeCurrencyAddress: {} },
+            required: ['market', 'reserve', 'volumeCurrencyAddress'],
+          },
+        },
+      ],
+    });
+    await expect(
+      runCreateTrigger({ postJson, getJson } as never, {
+        project_id: projectId,
+        trigger: {
+          name: 'APYX Kamino',
+          description: 'Kamino lend season 2',
+          type: 'kamino-lend',
+          context: { market: '0xabc', reserve: '0xdef' },
+        },
+        dry_run: true,
+      }),
+    ).rejects.toThrow(/volumeCurrencyAddress/);
+    expect(postJson).not.toHaveBeenCalled();
   });
 
   it('confirmed calls postJson', async () => {
