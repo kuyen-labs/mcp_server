@@ -4,6 +4,7 @@ import { attachDraftIdResolution, resolveDraftTriggerIdForWrite } from '../metad
 import type { CreateTriggerInput, DeleteTriggerInput } from '../tools/tool-schemas.js';
 import { PRICE_REFERENCE_POST_CREATE_WARNING, TOKEN_HOLDER_TYPES_WITH_PRICE_REF } from './price-reference-guide.js';
 import { assertTokenHolderPriceReferenceValid } from './validate-token-holder-price-reference.js';
+import { assertTriggerContextMatchesSchema } from './validate-trigger-context-schema.js';
 
 const TRIGGER_IN_USE_HINT =
   'This trigger is linked to one or more incentives. Delete those incentives first with delete_incentive ' +
@@ -16,6 +17,7 @@ export async function runCreateTrigger(api: FuulApiClient, input: CreateTriggerI
   const body = input.trigger;
 
   if (input.dry_run === true) {
+    await assertTriggerContextMatchesSchema(api, body);
     await assertTokenHolderPriceReferenceValid(api, body);
     return {
       dry_run: true,

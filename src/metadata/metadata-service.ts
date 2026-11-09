@@ -5,7 +5,7 @@ import { formatRateLimitMessage } from '../http/retry-after.js';
 const DEFAULT_METADATA_FRESH_MS = 15 * 60 * 1000;
 
 const PATH_CHAINS = '/public-api/v1/metadata/chains';
-const PATH_TRIGGER_TYPES = '/public-api/v1/metadata/trigger-types';
+export const PATH_TRIGGER_TYPES = '/public-api/v1/metadata/trigger-types';
 const PATH_PAYOUT_SCHEMAS = '/public-api/v1/metadata/payout-schemas';
 
 type CacheEntry = {
